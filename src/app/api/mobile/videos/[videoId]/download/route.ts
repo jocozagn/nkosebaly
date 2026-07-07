@@ -1,0 +1,93 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createReadStream } from "fs";
+import { Readable } from "stream";
+import { readAdminData } from "@/lib/admin/store";
+import { requireMobileDevice } from "@/lib/mobile/require-device";
+import { isLessonUnlocked } from "@/lib/progress/lesson-access";
+import { getVideoFilePath, videoExists } from "@/lib/videos/storage";
+
+interface RouteParams {
+  params: Promise<{ videoId: string }>;
+}
+
+/** Téléchargement vidéo offline — auth X-Device-Id, fichier jamais exposé publiquement */
+export const GET = async (req: NextRequest, { params }: RouteParams): Promise<NextResponse> => {
+  const deviceCheck = await requireMobileDevice(req);
+  if (!deviceCheck.ok) return deviceCheck.response;
+
+  const { videoId } = await params;
+  const lessonId = req.nextUrl.searchParams.get("lesson_id");
+
+  if (!lessonId) {
+    return NextResponse.json({ error: true, message: "lesson_id requis" }, { status: 400 });
+  }
+
+  const user = deviceCheck.user;
+  if (!user) {
+    return NextResponse.json({ error: true, message: "Profil requis" }, { status: 403 });
+  }
+
+  const data = await readAdminData();
+  const lesson = data.lessons.find((l) => l.id === lessonId && l.video_id === videoId);
+  if (!lesson?.video_id) {
+    return NextResponse.json({ error: true, message: "Leçon introuvable" }, { status: 404 });
+  }
+
+  const course = data.courses.find((c) => c.id === lesson.course_id && c.status === "published");
+  if (!course) {
+    return NextResponse.json({ error: true, message: "Cours introuvable" }, { status: 404 });
+  }
+
+  if (!isLessonUnlocked(data, user.id, lesson.course_id, lessonId, course.sequential_access)) {
+    return NextResponse.json(
+      { error: true, message: "Terminez les leçons précédentes" },
+      { status: 403 }
+    );
+  }
+
+  if (!(await videoExists(videoId))) {
+    return NextResponse.json({ error: true, message: "Vidéo introuvable" }, { status: 404 });
+  }
+
+  const filePath = getVideoFilePath(videoId);
+  const { statSync } = await import("fs");
+  const stat = statSync(filePath);
+  const range = req.headers.get("range");
+
+  const secureHeaders: Record<string, string> = {
+    "Content-Type": "application/octet-stream",
+    "Content-Disposition": "attachment; filename=lesson.bin",
+    "Cache-Control": "no-store, private",
+    "X-Content-Type-Options": "nosniff",
+  };
+
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+    const chunkSize = end - start + 1;
+    const stream = createReadStream(filePath, { start, end });
+    return new NextResponse(Readable.toWeb(stream) as ReadableStream, {
+      status: 206,
+      headers: {
+        ...secureHeaders,
+        "Content-Range": `bytes ${start}-${end}/${stat.size}`,
+        "Content-Length": String(chunkSize),
+        "Accept-Ranges": "bytes",
+      },
+    });
+  }
+
+  const stream = createReadStream(filePath);
+  return new NextResponse(Readable.toWeb(stream) as ReadableStream, {
+    status: 200,
+    headers: {
+      ...secureHeaders,
+      "Content-Length": String(stat.size),
+      "Accept-Ranges": "bytes",
+    },
+  });
+};
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";

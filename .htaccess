@@ -1,0 +1,35 @@
+# =============================================================================
+# Next.js — Balandou Wourouki Digital (nko.guineachippingexpress.com)
+# Hébergement LWS / cPanel avec Phusion Passenger
+# =============================================================================
+#
+# IMPORTANT : le .htaccess Laravel (index.php) ne fonctionne PAS pour Next.js.
+# Sur LWS, Node.js passe par cPanel > "Setup Node.js App", pas par un proxy
+# manuel vers 127.0.0.1:8000.
+#
+# Étapes cPanel :
+# 1. Setup Node.js App > Create Application
+# 2. Application URL : nko.guineachippingexpress.com
+# 3. Application root : dossier du projet (hors public_html si possible)
+# 4. Startup file : server.js
+# 5. Mode : Production | Node.js 20+
+# 6. Run NPM Install puis npm run build (terminal cPanel)
+# 7. Restart l'application
+#
+# cPanel ajoute automatiquement le bloc Passenger ci-dessous.
+# Ne supprimez pas les lignes "CLOUDLINUX PASSENGER CONFIGURATION".
+# =============================================================================
+
+# Affiche les erreurs Node/Passenger dans le navigateur (utile au débogage)
+<IfModule passenger_module>
+  PassengerFriendlyErrorPages on
+</IfModule>
+
+# Bloque l'accès direct aux fichiers sensibles
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  RewriteRule ^\.next/ - [F,L]
+  RewriteRule ^node_modules/ - [F,L]
+  RewriteRule ^\.env - [F,L]
+</IfModule>
