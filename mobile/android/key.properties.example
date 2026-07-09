@@ -1,0 +1,9 @@
+# Copier vers key.properties (gitignoré) — ne jamais commiter ce fichier rempli.
+#
+# Générer un keystore :
+#   keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias nkosebaly
+#
+storePassword=VOTRE_MOT_DE_PASSE
+keyPassword=VOTRE_MOT_DE_PASSE
+keyAlias=nkosebaly
+storeFile=upload-keystore.jks

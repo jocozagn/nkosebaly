@@ -17,6 +17,19 @@ dart run flutter_launcher_icons
 
 ## Build Android
 
+### Signature release (obligatoire)
+
+Les APK release **ne doivent pas** utiliser la clé debug. Configurez un keystore privé :
+
+```bash
+cd android
+keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias nkosebaly
+copy key.properties.example key.properties
+# Éditez key.properties avec vos mots de passe
+```
+
+Puis :
+
 ```bash
 flutter build apk --release
 # Sortie : build/app/outputs/flutter-apk/app-release.apk
