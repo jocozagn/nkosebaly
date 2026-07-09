@@ -78,7 +78,9 @@ Enregistrer le webhook chez Djomy : `POST https://silycor.xyz/api/webhooks/djomy
 | Dossier | Projet |
 |---------|--------|
 | `/` | Web + admin Next.js |
-| `/mobile` | App Flutter Android / iOS |
+| `/mobile` | App Flutter Android / iOS (copie monorepo) |
+
+**Repo mobile dédié** : [github.com/jocozagn/-nkosebaly-app](https://github.com/jocozagn/-nkosebaly-app)
 
 ## Package manager
 
