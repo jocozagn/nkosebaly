@@ -50,6 +50,7 @@ next-env.d.ts
 # Données élèves / licences (prod — ne pas versionner)
 /data/admin/store.json
 /data/admin/store.backup.json
+!/data/admin/store.example.json
 
 # APK release (déployé manuellement sur le VPS)
 /public/apk/*.apk
