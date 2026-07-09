@@ -14,6 +14,12 @@ const ALLOWED_MIME = new Set([
   "application/vnd.ms-powerpoint",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "text/plain",
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/ogg",
+  "audio/webm",
+  "audio/x-wav",
 ]);
 
 const MAX_BYTES = 20 * 1024 * 1024; // 20 Mo
@@ -28,6 +34,12 @@ const EXT_BY_MIME: Record<string, string> = {
   "application/vnd.ms-powerpoint": ".ppt",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
   "text/plain": ".txt",
+  "audio/mpeg": ".mp3",
+  "audio/mp3": ".mp3",
+  "audio/wav": ".wav",
+  "audio/x-wav": ".wav",
+  "audio/ogg": ".ogg",
+  "audio/webm": ".webm",
 };
 
 export interface SavedAttachment {

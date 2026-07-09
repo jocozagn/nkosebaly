@@ -3,6 +3,11 @@ import { deleteVideoFile } from "@/lib/videos/storage";
 import { deleteAttachmentFile } from "@/lib/attachments/storage";
 import path from "path";
 import { isLessonUnlocked } from "@/lib/progress/lesson-access";
+import { isPostgresEnabled } from "@/lib/db/config";
+import {
+  readAppDataFromPostgres,
+  writeAppDataToPostgres,
+} from "@/lib/db/app-data-repository";
 import type {
   AdminCategory,
   AdminCertificate,
@@ -13,6 +18,7 @@ import type {
   AdminLessonAttachment,
   AdminLessonQuestion,
   AdminLessonReaction,
+  AdminLessonQuizItem,
   AdminLicenseCard,
   AdminNotification,
   AdminNotificationType,
@@ -21,10 +27,18 @@ import type {
   AdminUser,
   PaymentStatus,
   StudentAuthSession,
+  MobileAuthSession,
   StudentLessonProgress,
   StudentQuizAttempt,
   StudentProfileInput,
+  WatchActivityPayload,
+  AdminAnalyticsSummary,
 } from "./types";
+import {
+  applyWatchActivityBatch,
+  buildAnalyticsSummary,
+  recordWatchActivityOnData,
+} from "./analytics";
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin");
 const DATA_FILE = path.join(DATA_DIR, "store.json");
@@ -32,7 +46,7 @@ const DATA_FILE_TMP = path.join(DATA_DIR, "store.json.tmp");
 const DATA_FILE_BACKUP = path.join(DATA_DIR, "store.backup.json");
 
 const defaultSettings: AdminSettings = {
-  app_name: "Balandou Wourouki Digital",
+  app_name: "Karamoo Sêebaly",
   contact_email: "diallomoussa2003@gmail.com",
   contact_phone: "+224622873308",
   commission_rate: 10,
@@ -52,11 +66,16 @@ const defaultData: AdminData = {
   lesson_attachments: [],
   lesson_questions: [],
   lesson_reactions: [],
+  lesson_quiz_items: [],
   quiz_questions: [],
   license_cards: [],
   student_auth_sessions: [],
+  mobile_auth_sessions: [],
   lesson_progress: [],
+  student_daily_activity: [],
+  content_watch_stats: [],
   quiz_attempts: [],
+  lesson_quiz_attempts: [],
   users: [],
   certificates: [],
   notifications: [],
@@ -70,6 +89,9 @@ const normalizeLicenseCards = (cards: AdminLicenseCard[]): AdminLicenseCard[] =>
     activation_token:
       c.activation_token ??
       crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "").slice(0, 16),
+    allowed_course_ids: Array.isArray(c.allowed_course_ids) ? c.allowed_course_ids : [],
+    card_price_gnf: typeof c.card_price_gnf === "number" ? c.card_price_gnf : undefined,
+    certificate_price_gnf: typeof c.certificate_price_gnf === "number" ? c.certificate_price_gnf : undefined,
   }));
 
 /** Fusionne les anciennes données avec les nouveaux champs */
@@ -81,11 +103,16 @@ const normalizeData = (raw: Partial<AdminData>): AdminData => ({
   lesson_attachments: raw.lesson_attachments ?? [],
   lesson_questions: raw.lesson_questions ?? [],
   lesson_reactions: raw.lesson_reactions ?? [],
+  lesson_quiz_items: raw.lesson_quiz_items ?? [],
   quiz_questions: raw.quiz_questions ?? [],
   license_cards: normalizeLicenseCards(raw.license_cards ?? []),
   student_auth_sessions: raw.student_auth_sessions ?? [],
+  mobile_auth_sessions: (raw.mobile_auth_sessions ?? []) as MobileAuthSession[],
   lesson_progress: raw.lesson_progress ?? [],
+  student_daily_activity: raw.student_daily_activity ?? [],
+  content_watch_stats: raw.content_watch_stats ?? [],
   quiz_attempts: raw.quiz_attempts ?? [],
+  lesson_quiz_attempts: raw.lesson_quiz_attempts ?? [],
   users: raw.users ?? [],
   certificates: raw.certificates ?? [],
   notifications: raw.notifications ?? [],
@@ -105,6 +132,12 @@ const tryParseStoreFile = async (filePath: string): Promise<AdminData | null> =>
 };
 
 export const readAdminData = async (): Promise<AdminData> => {
+  // Phase Scale : backend PostgreSQL (snapshot JSONB) si activé
+  if (isPostgresEnabled()) {
+    const fromDb = await readAppDataFromPostgres();
+    if (fromDb) return normalizeData(fromDb);
+  }
+
   // Réessaye en cas de lecture pendant une écriture concurrente
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const data = await tryParseStoreFile(DATA_FILE);
@@ -128,6 +161,11 @@ export const readAdminData = async (): Promise<AdminData> => {
 };
 
 export const writeAdminData = async (data: AdminData): Promise<void> => {
+  // Phase Scale : écriture PostgreSQL + backup JSON local (sécurité transition)
+  if (isPostgresEnabled()) {
+    await writeAppDataToPostgres(data);
+  }
+
   await fs.mkdir(DATA_DIR, { recursive: true });
   const content = JSON.stringify(data, null, 2);
 
@@ -188,6 +226,7 @@ export const deleteCourse = async (id: string): Promise<boolean> => {
   data.lessons = data.lessons.filter((l) => l.course_id !== id);
   data.quiz_questions = data.quiz_questions.filter((q) => q.course_id !== id);
   data.quiz_attempts = data.quiz_attempts.filter((a) => a.course_id !== id);
+  data.lesson_quiz_attempts = data.lesson_quiz_attempts.filter((a) => a.course_id !== id);
   await writeAdminData(data);
   return data.courses.length < before;
 };
@@ -262,7 +301,16 @@ export const getCurriculumBundle = async (courseId: string) => {
     questionsByLesson[lessonId].sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
 
-  return { course, chapters, lessons, attachmentsByLesson, questionsByLesson };
+  const quizItemsByLesson: Record<string, AdminLessonQuizItem[]> = {};
+  for (const item of data.lesson_quiz_items.filter((q) => q.course_id === courseId)) {
+    if (!quizItemsByLesson[item.lesson_id]) quizItemsByLesson[item.lesson_id] = [];
+    quizItemsByLesson[item.lesson_id].push(item);
+  }
+  for (const lessonId of Object.keys(quizItemsByLesson)) {
+    quizItemsByLesson[lessonId].sort((a, b) => a.order - b.order);
+  }
+
+  return { course, chapters, lessons, attachmentsByLesson, questionsByLesson, quizItemsByLesson };
 };
 
 export const saveLesson = async (lesson: AdminLesson): Promise<AdminLesson> => {
@@ -272,6 +320,42 @@ export const saveLesson = async (lesson: AdminLesson): Promise<AdminLesson> => {
   syncLessonCount(data, lesson.course_id);
   await writeAdminData(data);
   return lesson;
+};
+
+/** Met à jour une leçon (titre, chapitre, vidéo, durée) */
+export const updateLesson = async (
+  id: string,
+  updates: {
+    title?: string;
+    chapter_id?: string;
+    video_id?: string;
+    duration_minutes?: number;
+  }
+): Promise<AdminLesson | null> => {
+  const data = await readAdminData();
+  const index = data.lessons.findIndex((l) => l.id === id);
+  if (index < 0) return null;
+
+  const current = data.lessons[index];
+  const nextVideoId = updates.video_id ?? current.video_id;
+
+  // Supprime l'ancienne vidéo si une nouvelle est uploadée
+  if (updates.video_id && updates.video_id !== current.video_id && current.video_id) {
+    await deleteVideoFile(current.video_id);
+  }
+
+  const updated: AdminLesson = {
+    ...current,
+    title: updates.title?.trim() || current.title,
+    chapter_id: updates.chapter_id ?? current.chapter_id,
+    video_id: nextVideoId,
+    duration_minutes: Math.max(1, updates.duration_minutes ?? current.duration_minutes),
+  };
+
+  data.lessons[index] = updated;
+  syncLessonCount(data, current.course_id);
+  await writeAdminData(data);
+  return updated;
 };
 
 export const deleteLesson = async (id: string): Promise<void> => {
@@ -288,6 +372,8 @@ export const deleteLesson = async (id: string): Promise<void> => {
   data.lesson_attachments = data.lesson_attachments.filter((a) => a.lesson_id !== id);
   data.lesson_questions = data.lesson_questions.filter((q) => q.lesson_id !== id);
   data.lesson_reactions = data.lesson_reactions.filter((r) => r.lesson_id !== id);
+  data.lesson_quiz_items = data.lesson_quiz_items.filter((q) => q.lesson_id !== id);
+  data.lesson_quiz_attempts = data.lesson_quiz_attempts.filter((a) => a.lesson_id !== id);
 
   if (lesson) syncLessonCount(data, lesson.course_id);
   await writeAdminData(data);
@@ -421,7 +507,195 @@ export const deleteQuizQuestion = async (id: string): Promise<void> => {
   await writeAdminData(data);
 };
 
-/** Score minimum pour réussir (seuil admin basé sur 20 questions, ex: 15/20) */
+// --- Quiz de leçon (exercices par leçon) ---
+export const getLessonQuizItems = async (lessonId: string): Promise<AdminLessonQuizItem[]> =>
+  (await readAdminData())
+    .lesson_quiz_items.filter((item) => item.lesson_id === lessonId && item.active)
+    .sort((a, b) => a.order - b.order);
+
+export const getLessonQuizItemsAdmin = async (lessonId: string): Promise<AdminLessonQuizItem[]> =>
+  (await readAdminData())
+    .lesson_quiz_items.filter((item) => item.lesson_id === lessonId)
+    .sort((a, b) => a.order - b.order);
+
+export const saveLessonQuizItem = async (item: AdminLessonQuizItem): Promise<AdminLessonQuizItem> => {
+  const data = await readAdminData();
+  const index = data.lesson_quiz_items.findIndex((x) => x.id === item.id);
+  if (index >= 0) data.lesson_quiz_items[index] = item;
+  else data.lesson_quiz_items.push(item);
+  await writeAdminData(data);
+  return item;
+};
+
+export const deleteLessonQuizItem = async (id: string): Promise<void> => {
+  const data = await readAdminData();
+  data.lesson_quiz_items = data.lesson_quiz_items.filter((item) => item.id !== id);
+  await writeAdminData(data);
+};
+
+const getLessonQuizPassScore = (total: number): number =>
+  total === 0 ? 0 : Math.max(1, Math.ceil(total * 0.7));
+
+/** Meilleure tentative d'exercice pour une leçon (score le plus élevé) */
+export const getBestLessonQuizAttempt = (
+  data: AdminData,
+  userId: string,
+  lessonId: string
+): import("./types").StudentLessonQuizAttempt | undefined =>
+  data.lesson_quiz_attempts
+    .filter((a) => a.user_id === userId && a.lesson_id === lessonId)
+    .sort((a, b) => b.score - a.score || b.created_at.localeCompare(a.created_at))[0];
+
+const saveLessonQuizAttempt = async (
+  userId: string,
+  courseId: string,
+  lessonId: string,
+  result: {
+    score: number;
+    total: number;
+    passed: boolean;
+    pass_required: number;
+    details: { item_id: string; correct: boolean }[];
+  }
+): Promise<void> => {
+  const data = await readAdminData();
+  data.lesson_quiz_attempts.push({
+    id: crypto.randomUUID(),
+    user_id: userId,
+    course_id: courseId,
+    lesson_id: lessonId,
+    score: result.score,
+    total: result.total,
+    passed: result.passed,
+    pass_required: result.pass_required,
+    details: result.details,
+    created_at: new Date().toISOString(),
+  });
+  await writeAdminData(data);
+};
+
+const gradeStudentLessonQuizAnswers = async (
+  courseId: string,
+  lessonId: string,
+  answers: import("./types").StudentLessonQuizAnswerPayload[]
+): Promise<
+  | {
+      score: number;
+      total: number;
+      passed: boolean;
+      pass_required: number;
+      details: { item_id: string; correct: boolean }[];
+    }
+  | { error: string }
+> => {
+  const { gradeLessonQuizAnswer } = await import("@/lib/quiz/lesson-quiz");
+  const data = await readAdminData();
+  const items = data.lesson_quiz_items
+    .filter((item) => item.lesson_id === lessonId && item.course_id === courseId && item.active)
+    .sort((a, b) => a.order - b.order);
+
+  if (items.length === 0) return { error: "Aucun exercice pour cette leçon" };
+
+  const itemIds = new Set(items.map((item) => item.id));
+  const validAnswers = answers.filter((a) => itemIds.has(a.item_id));
+  if (validAnswers.length !== items.length) {
+    return { error: "Veuillez répondre à tous les exercices" };
+  }
+
+  const details = items.map((item) => {
+    const answer = validAnswers.find((a) => a.item_id === item.id)!;
+    return { item_id: item.id, correct: gradeLessonQuizAnswer(item, answer) };
+  });
+
+  const score = details.filter((d) => d.correct).length;
+  const total = items.length;
+  const passRequired = getLessonQuizPassScore(total);
+
+  return {
+    score,
+    total,
+    passed: score >= passRequired,
+    pass_required: passRequired,
+    details,
+  };
+};
+
+export const submitStudentLessonQuiz = async (
+  authToken: string,
+  courseId: string,
+  lessonId: string,
+  answers: import("./types").StudentLessonQuizAnswerPayload[]
+): Promise<
+  | {
+      score: number;
+      total: number;
+      passed: boolean;
+      pass_required: number;
+      details: { item_id: string; correct: boolean }[];
+    }
+  | { error: string }
+> => {
+  const user = await getStudentUserByAuthToken(authToken);
+  if (!user) return { error: "Profil introuvable" };
+
+  const access = await canStudentAccessLesson(authToken, courseId, lessonId);
+  if (!access.allowed) return { error: access.reason ?? "Accès refusé" };
+
+  const result = await gradeStudentLessonQuizAnswers(courseId, lessonId, answers);
+  if ("error" in result) return result;
+
+  await saveLessonQuizAttempt(user.id, courseId, lessonId, result);
+  return result;
+};
+
+export const submitStudentLessonQuizByUserId = async (
+  userId: string,
+  courseId: string,
+  lessonId: string,
+  answers: import("./types").StudentLessonQuizAnswerPayload[]
+): Promise<
+  | {
+      score: number;
+      total: number;
+      passed: boolean;
+      pass_required: number;
+      details: { item_id: string; correct: boolean }[];
+    }
+  | { error: string }
+> => {
+  const data = await readAdminData();
+  const course = data.courses.find((c) => c.id === courseId && c.status === "published");
+  if (!course) return { error: "Cours introuvable" };
+
+  const lesson = data.lessons.find((l) => l.id === lessonId && l.course_id === courseId);
+  if (!lesson) return { error: "Leçon introuvable" };
+
+  if (!isLessonUnlocked(data, userId, courseId, lessonId, course.sequential_access)) {
+    return { error: "Leçon verrouillée" };
+  }
+
+  const result = await gradeStudentLessonQuizAnswers(courseId, lessonId, answers);
+  if ("error" in result) return result;
+
+  await saveLessonQuizAttempt(userId, courseId, lessonId, result);
+  return result;
+};
+
+export const getStudentLessonQuizForPlayback = async (
+  courseId: string,
+  lessonId: string,
+  mediaUrlBuilder: (file: { file_id: string; mime_type: string }) => string
+) => {
+  const { stripLessonQuizItemForStudent } = await import("@/lib/quiz/lesson-quiz");
+  const data = await readAdminData();
+  const items = data.lesson_quiz_items
+    .filter((item) => item.lesson_id === lessonId && item.course_id === courseId && item.active)
+    .sort((a, b) => a.order - b.order);
+
+  return items.map((item) => stripLessonQuizItemForStudent(item, mediaUrlBuilder));
+};
+
+/** Questions actives d'un cours pour le quiz élève (sans réponses) */
 export const getQuizPassRequired = (totalQuestions: number, threshold: number): number => {
   if (totalQuestions === 0) return 0;
   return Math.max(1, Math.ceil((threshold / 20) * totalQuestions));
@@ -492,6 +766,50 @@ export const getStudentQuizState = async (authToken: string, courseId: string) =
   };
 };
 
+/**
+ * Mobile: état du quiz pour un élève identifié par device_id (X-Mobile-Token → deviceId stable).
+ * On duplique la logique pour éviter de dépendre des cookies web (auth_token).
+ */
+export const getStudentQuizStateByDeviceId = async (deviceId: string, courseId: string) => {
+  const user = await getStudentUserByDeviceId(deviceId);
+  if (!user) return null;
+
+  const data = await readAdminData();
+  const course = data.courses.find((c) => c.id === courseId && c.status === "published");
+  if (!course) return null;
+
+  const activeCount = data.quiz_questions.filter((q) => q.course_id === courseId && q.active).length;
+  const courseProgress = calculateCourseProgressPercent(data, user.id, courseId);
+  const attempts = data.quiz_attempts.filter((a) => a.user_id === user.id && a.course_id === courseId);
+  const passedAttempt = attempts.find((a) => a.passed);
+  const maxAttempts = data.settings.quiz_max_attempts;
+  const passThreshold = data.settings.quiz_pass_threshold;
+  const passRequired = getQuizPassRequired(activeCount, passThreshold);
+  const bestScore = attempts.length > 0 ? Math.max(...attempts.map((a) => a.score)) : 0;
+
+  const lessonsComplete = courseProgress.total > 0 && courseProgress.percent >= 100;
+  const canAttempt =
+    activeCount > 0 &&
+    lessonsComplete &&
+    !passedAttempt &&
+    attempts.length < maxAttempts;
+
+  return {
+    course: { id: course.id, title: course.title },
+    question_count: activeCount,
+    course_progress_percent: courseProgress.percent,
+    lessons_complete: lessonsComplete,
+    attempts_used: attempts.length,
+    max_attempts: maxAttempts,
+    pass_threshold: passThreshold,
+    pass_required_score: passRequired,
+    best_score: bestScore,
+    passed: Boolean(passedAttempt),
+    can_attempt: canAttempt,
+    last_attempt: attempts[0] ?? null,
+  };
+};
+
 /** Soumet et corrige un quiz */
 export const submitStudentQuiz = async (
   authToken: string,
@@ -511,6 +829,81 @@ export const submitStudentQuiz = async (
 
   const data = await readAdminData();
   const state = await getStudentQuizState(authToken, courseId);
+  if (!state) return { error: "Cours introuvable" };
+  if (!state.can_attempt) return { error: "Quiz non disponible ou tentatives épuisées" };
+
+  const questions = data.quiz_questions.filter((q) => q.course_id === courseId && q.active);
+  if (questions.length === 0) return { error: "Aucune question disponible" };
+
+  const questionIds = new Set(questions.map((q) => q.id));
+  const validAnswers = answers.filter((a) => questionIds.has(a.question_id));
+
+  if (validAnswers.length !== questions.length) {
+    return { error: "Veuillez répondre à toutes les questions" };
+  }
+
+  const details = validAnswers.map((a) => {
+    const q = questions.find((item) => item.id === a.question_id)!;
+    const correct = a.selected === q.correct_answer;
+    return { question_id: a.question_id, selected: a.selected, correct };
+  });
+
+  const score = details.filter((d) => d.correct).length;
+  const total = questions.length;
+  const passRequired = getQuizPassRequired(total, data.settings.quiz_pass_threshold);
+  const passed = score >= passRequired;
+
+  const attempt: StudentQuizAttempt = {
+    id: crypto.randomUUID(),
+    user_id: user.id,
+    course_id: courseId,
+    score,
+    total,
+    passed,
+    answers: details,
+    created_at: new Date().toISOString(),
+  };
+
+  data.quiz_attempts.push(attempt);
+  await writeAdminData(data);
+
+  const attemptsUsed = data.quiz_attempts.filter(
+    (a) => a.user_id === user.id && a.course_id === courseId
+  ).length;
+
+  return {
+    score,
+    total,
+    passed,
+    pass_required: passRequired,
+    attempts_used: attemptsUsed,
+    max_attempts: data.settings.quiz_max_attempts,
+    details,
+  };
+};
+
+/**
+ * Mobile: soumission quiz par device_id.
+ * Même règles: leçons terminées, tentatives max, toutes les réponses requises.
+ */
+export const submitStudentQuizByDeviceId = async (
+  deviceId: string,
+  courseId: string,
+  answers: { question_id: string; selected: number }[]
+): Promise<{
+  score: number;
+  total: number;
+  passed: boolean;
+  pass_required: number;
+  attempts_used: number;
+  max_attempts: number;
+  details: { question_id: string; selected: number; correct: boolean }[];
+} | { error: string }> => {
+  const user = await getStudentUserByDeviceId(deviceId);
+  if (!user) return { error: "Profil introuvable" };
+
+  const data = await readAdminData();
+  const state = await getStudentQuizStateByDeviceId(deviceId, courseId);
   if (!state) return { error: "Cours introuvable" };
   if (!state.can_attempt) return { error: "Quiz non disponible ou tentatives épuisées" };
 
@@ -689,9 +1082,40 @@ export const saveLicenseCard = async (card: AdminLicenseCard): Promise<AdminLice
   return card;
 };
 
+/**
+ * Révoque (détache) une carte de son appareil actuel.
+ * Cas d'usage: téléphone perdu/volé → permettre réactivation sur un autre téléphone.
+ *
+ * Politique: 1 carte = 1 téléphone à la fois.
+ * Donc on remet la carte en "unused" et on efface device_id / dates d'activation.
+ * On supprime aussi les sessions web liées à cette carte (règle "1 personne à la fois").
+ */
+export const revokeLicenseCardDevice = async (cardId: string): Promise<AdminLicenseCard | null> => {
+  const data = await readAdminData();
+  const card = data.license_cards.find((c) => c.id === cardId);
+  if (!card) return null;
+
+  // On libère la carte pour réactivation sur un autre téléphone.
+  card.status = "unused";
+  card.device_id = undefined;
+  card.activated_at = undefined;
+  card.expires_at = undefined;
+
+  // On supprime toutes les sessions web associées à cette carte.
+  data.student_auth_sessions = data.student_auth_sessions.filter((s) => s.license_card_id !== cardId);
+
+  await writeAdminData(data);
+  return card;
+};
+
 export const generateLicenseCards = async (
   count: number,
-  durationMonths: 3 | 6 | 12
+  durationMonths: 3 | 6 | 12,
+  options?: {
+    allowed_course_ids?: string[];
+    card_price_gnf?: number;
+    certificate_price_gnf?: number;
+  }
 ): Promise<AdminLicenseCard[]> => {
   const data = await readAdminData();
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -706,6 +1130,9 @@ export const generateLicenseCards = async (
       code_text: `NKO-${randomBlock(4)}-${randomBlock(4)}`,
       activation_token: crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "").slice(0, 16),
       duration_months: durationMonths,
+      allowed_course_ids: options?.allowed_course_ids ?? [],
+      card_price_gnf: options?.card_price_gnf,
+      certificate_price_gnf: options?.certificate_price_gnf,
       status: "unused",
       created_at: new Date().toISOString(),
     });
@@ -766,7 +1193,11 @@ export const linkStudentAuthSession = async (
   licenseCardId: string
 ): Promise<StudentAuthSession> => {
   const data = await readAdminData();
-  data.student_auth_sessions = data.student_auth_sessions.filter((s) => s.auth_token !== authToken);
+  // Règle "1 personne à la fois" côté web :
+  // on supprime toutes les sessions web existantes pour cette carte (même si ouverture dans un autre navigateur).
+  data.student_auth_sessions = data.student_auth_sessions.filter(
+    (s) => s.license_card_id !== licenseCardId
+  );
 
   const session: StudentAuthSession = {
     auth_token: authToken,
@@ -796,6 +1227,13 @@ export const getActiveLicenseByDeviceId = async (
   return { card, user };
 };
 
+/** Cours autorisés par une carte licence (vide = tous) */
+export const getAllowedCourseIdsForCard = (card: AdminLicenseCard): string[] | null => {
+  if (!Array.isArray(card.allowed_course_ids)) return null;
+  if (card.allowed_course_ids.length === 0) return null;
+  return card.allowed_course_ids;
+};
+
 /** Récupère la licence active liée au cookie auth étudiant */
 export const getStudentLicenseByAuthToken = async (
   authToken: string
@@ -811,12 +1249,58 @@ export const getStudentLicenseByAuthToken = async (
   return { card, session };
 };
 
+/** Crée une session mobile (token) pour une carte licence */
+export const createMobileAuthSession = async (licenseCardId: string): Promise<MobileAuthSession> => {
+  const data = await readAdminData();
+  const session: MobileAuthSession = {
+    mobile_token: crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, ""),
+    license_card_id: licenseCardId,
+    linked_at: new Date().toISOString(),
+  };
+  data.mobile_auth_sessions.push(session);
+  // Limite simple pour éviter croissance infinie
+  if (data.mobile_auth_sessions.length > 5000) {
+    data.mobile_auth_sessions = data.mobile_auth_sessions.slice(-5000);
+  }
+  await writeAdminData(data);
+  return session;
+};
+
+/** Licence active via token mobile (remplace device_id) */
+export const getActiveLicenseByMobileToken = async (
+  mobileToken: string
+): Promise<{ card: AdminLicenseCard; user: AdminUser | null; session: MobileAuthSession } | null> => {
+  const data = await readAdminData();
+  const session = data.mobile_auth_sessions.find((s) => s.mobile_token === mobileToken);
+  if (!session) return null;
+  const card = data.license_cards.find((c) => c.id === session.license_card_id);
+  if (!card || !isLicenseCardValid(card)) return null;
+  const user = data.users.find((u) => u.license_card_id === card.id) ?? null;
+  return { card, user, session };
+};
+
 /** Première carte non utilisée (mode test admin/dev) */
 export const getFirstUnusedLicenseCard = async (): Promise<AdminLicenseCard | undefined> =>
   (await readAdminData()).license_cards.find((c) => c.status === "unused");
 
 // --- Utilisateurs ---
-export const getUsers = async (): Promise<AdminUser[]> => (await readAdminData()).users;
+/** Liste des étudiants avec progression recalculée depuis lesson_progress */
+export const getUsers = async (): Promise<
+  (AdminUser & { lessons_completed: number; lessons_total: number })[]
+> => {
+  const data = await readAdminData();
+  return data.users
+    .map((user) => {
+      const stats = getUserProgressStats(data, user.id);
+      return {
+        ...user,
+        progress_percent: stats.percent,
+        lessons_completed: stats.completed,
+        lessons_total: stats.total,
+      };
+    })
+    .sort((a, b) => b.progress_percent - a.progress_percent);
+};
 
 /** Seuil de visionnage pour marquer une leçon comme terminée */
 export const LESSON_COMPLETION_THRESHOLD = 90;
@@ -826,6 +1310,12 @@ export const getStudentUserByAuthToken = async (authToken: string): Promise<Admi
   const session = data.student_auth_sessions.find((s) => s.auth_token === authToken);
   if (!session) return null;
   return data.users.find((u) => u.device_id === session.device_id) ?? null;
+};
+
+/** Utilisateur lié à l'appareil mobile (sans cookie web) */
+export const getStudentUserByDeviceId = async (deviceId: string): Promise<AdminUser | null> => {
+  const data = await readAdminData();
+  return data.users.find((u) => u.device_id === deviceId) ?? null;
 };
 
 const calculateCourseProgressPercent = (
@@ -846,13 +1336,16 @@ const calculateCourseProgressPercent = (
   return { percent: Math.round((completed / total) * 100), completed, total };
 };
 
-const calculateGlobalProgressPercent = (data: AdminData, userId: string): number => {
+const getUserProgressStats = (
+  data: AdminData,
+  userId: string
+): { percent: number; completed: number; total: number } => {
   const publishedCourseIds = new Set(
     data.courses.filter((c) => c.status === "published").map((c) => c.id)
   );
   const lessons = data.lessons.filter((l) => publishedCourseIds.has(l.course_id) && l.video_id);
   const total = lessons.length;
-  if (total === 0) return 0;
+  if (total === 0) return { percent: 0, completed: 0, total: 0 };
 
   const completed = lessons.filter((lesson) =>
     data.lesson_progress.some(
@@ -860,15 +1353,19 @@ const calculateGlobalProgressPercent = (data: AdminData, userId: string): number
     )
   ).length;
 
-  return Math.round((completed / total) * 100);
+  return { percent: Math.round((completed / total) * 100), completed, total };
 };
 
-/** Met à jour la progression de visionnage d'une leçon */
-export const updateLessonProgress = async (
-  authToken: string,
+const calculateGlobalProgressPercent = (data: AdminData, userId: string): number =>
+  getUserProgressStats(data, userId).percent;
+
+/** Met à jour la progression de visionnage d'une leçon (+ analytics optionnels) */
+const applyLessonProgressUpdate = async (
+  user: AdminUser,
   courseId: string,
   lessonId: string,
-  watchPercent: number
+  watchPercent: number,
+  activity?: Omit<WatchActivityPayload, "course_id" | "lesson_id" | "watch_percent">
 ): Promise<{
   completed: boolean;
   watch_percent: number;
@@ -876,11 +1373,6 @@ export const updateLessonProgress = async (
   global_percent: number;
 } | null> => {
   const data = await readAdminData();
-  const session = data.student_auth_sessions.find((s) => s.auth_token === authToken);
-  if (!session) return null;
-
-  const user = data.users.find((u) => u.device_id === session.device_id);
-  if (!user) return null;
 
   const lesson = data.lessons.find((l) => l.id === lessonId && l.course_id === courseId);
   if (!lesson?.video_id) return null;
@@ -917,6 +1409,14 @@ export const updateLessonProgress = async (
   }
   user.progress_percent = calculateGlobalProgressPercent(data, user.id);
 
+  // Temps passé + stats leçon/cours (heartbeat ou ouverture)
+  if (activity) {
+    recordWatchActivityOnData(data, user.id, courseId, lessonId, {
+      ...activity,
+      watch_percent: pct,
+    });
+  }
+
   await writeAdminData(data);
 
   const courseStats = calculateCourseProgressPercent(data, user.id, courseId);
@@ -928,16 +1428,160 @@ export const updateLessonProgress = async (
   };
 };
 
-/** Résumé progression globale et par cours */
-export const getStudentProgressSummary = async (authToken: string, courseId?: string) => {
+export const updateLessonProgress = async (
+  authToken: string,
+  courseId: string,
+  lessonId: string,
+  watchPercent: number,
+  activity?: Omit<WatchActivityPayload, "course_id" | "lesson_id" | "watch_percent">
+): Promise<{
+  completed: boolean;
+  watch_percent: number;
+  course_percent: number;
+  global_percent: number;
+} | null> => {
   const user = await getStudentUserByAuthToken(authToken);
   if (!user) return null;
+  return applyLessonProgressUpdate(user, courseId, lessonId, watchPercent, activity);
+};
+
+/** Progression depuis l'app mobile (auth par device_id) */
+export const updateLessonProgressByDeviceId = async (
+  deviceId: string,
+  courseId: string,
+  lessonId: string,
+  watchPercent: number,
+  activity?: Omit<WatchActivityPayload, "course_id" | "lesson_id" | "watch_percent">
+): Promise<{
+  completed: boolean;
+  watch_percent: number;
+  course_percent: number;
+  global_percent: number;
+} | null> => {
+  const user = await getStudentUserByDeviceId(deviceId);
+  if (!user) return null;
+  return applyLessonProgressUpdate(user, courseId, lessonId, watchPercent, activity);
+};
+
+/** Enregistre l'ouverture d'une leçon (web) */
+export const recordLessonOpenByAuthToken = async (
+  authToken: string,
+  courseId: string,
+  lessonId: string,
+  clientTimestamp?: string
+): Promise<boolean> => {
+  const user = await getStudentUserByAuthToken(authToken);
+  if (!user) return false;
 
   const data = await readAdminData();
+  recordWatchActivityOnData(data, user.id, courseId, lessonId, {
+    event_type: "lesson_open",
+    source: "web",
+    client_timestamp: clientTimestamp,
+  });
+  await writeAdminData(data);
+  return true;
+};
+
+/** Enregistre l'ouverture d'une leçon (mobile) */
+export const recordLessonOpenByDeviceId = async (
+  deviceId: string,
+  courseId: string,
+  lessonId: string,
+  clientTimestamp?: string
+): Promise<boolean> => {
+  const user = await getStudentUserByDeviceId(deviceId);
+  if (!user) return false;
+
+  const data = await readAdminData();
+  recordWatchActivityOnData(data, user.id, courseId, lessonId, {
+    event_type: "lesson_open",
+    source: "mobile",
+    client_timestamp: clientTimestamp,
+  });
+  await writeAdminData(data);
+  return true;
+};
+
+/** Synchronise un lot d'événements hors-ligne (mobile) */
+export const syncWatchActivitiesByDeviceId = async (
+  deviceId: string,
+  events: WatchActivityPayload[]
+): Promise<{ synced: number }> => {
+  const user = await getStudentUserByDeviceId(deviceId);
+  if (!user) return { synced: 0 };
+
+  const data = await readAdminData();
+  const synced = applyWatchActivityBatch(data, user, events);
+
+  // Met à jour la progression pour chaque heartbeat avec watch_percent
+  for (const event of events) {
+    const courseId = event.course_id?.trim();
+    const lessonId = event.lesson_id?.trim();
+    const watchPercent = Number(event.watch_percent ?? NaN);
+    if (!courseId || !lessonId || Number.isNaN(watchPercent)) continue;
+
+    const lesson = data.lessons.find((l) => l.id === lessonId && l.course_id === courseId);
+    if (!lesson?.video_id) continue;
+
+    const pct = Math.min(100, Math.max(0, Math.round(watchPercent)));
+    const isComplete = pct >= LESSON_COMPLETION_THRESHOLD;
+    const now = new Date().toISOString();
+
+    let record = data.lesson_progress.find((p) => p.user_id === user.id && p.lesson_id === lessonId);
+    if (!record) {
+      record = {
+        id: crypto.randomUUID(),
+        user_id: user.id,
+        course_id: courseId,
+        lesson_id: lessonId,
+        completed: isComplete,
+        watch_percent: pct,
+        completed_at: isComplete ? now : undefined,
+        updated_at: now,
+      };
+      data.lesson_progress.push(record);
+    } else {
+      record.watch_percent = Math.max(record.watch_percent, pct);
+      if (isComplete) {
+        record.completed = true;
+        record.completed_at = record.completed_at ?? now;
+        record.watch_percent = Math.max(record.watch_percent, LESSON_COMPLETION_THRESHOLD);
+      }
+      record.updated_at = now;
+    }
+
+    if (!user.enrolled_course_ids.includes(courseId)) {
+      user.enrolled_course_ids.push(courseId);
+    }
+  }
+
+  user.progress_percent = calculateGlobalProgressPercent(data, user.id);
+  await writeAdminData(data);
+  return { synced };
+};
+
+/** Résumé analytics pour la page admin */
+export const getAnalyticsSummary = async (days = 7): Promise<AdminAnalyticsSummary> => {
+  const data = await readAdminData();
+  return buildAnalyticsSummary(data, days);
+};
+
+/** Résumé progression globale et par cours */
+const buildStudentProgressSummary = (
+  data: AdminData,
+  user: AdminUser,
+  courseId?: string,
+  allowedCourseIds?: string[] | null
+) => {
   const globalPercent = calculateGlobalProgressPercent(data, user.id);
 
   const publishedCourses = data.courses.filter((c) => c.status === "published");
-  const courses = publishedCourses.map((course) => {
+  const scopedCourses = allowedCourseIds
+    ? publishedCourses.filter((c) => allowedCourseIds.includes(c.id))
+    : publishedCourses;
+
+  const courses = scopedCourses.map((course) => {
     const stats = calculateCourseProgressPercent(data, user.id, course.id);
     const completedLessonIds = data.lesson_progress
       .filter((p) => p.user_id === user.id && p.course_id === course.id && p.completed)
@@ -945,6 +1589,7 @@ export const getStudentProgressSummary = async (authToken: string, courseId?: st
 
     return {
       course_id: course.id,
+      course_title: course.title,
       percent: stats.percent,
       completed_lessons: stats.completed,
       total_lessons: stats.total,
@@ -953,6 +1598,9 @@ export const getStudentProgressSummary = async (authToken: string, courseId?: st
   });
 
   if (courseId) {
+    if (allowedCourseIds && !allowedCourseIds.includes(courseId)) {
+      return null;
+    }
     const course = data.courses.find((c) => c.id === courseId);
     const courseEntry = courses.find((c) => c.course_id === courseId);
     const videoLessons = data.lessons.filter((l) => l.course_id === courseId && l.video_id);
@@ -961,23 +1609,61 @@ export const getStudentProgressSummary = async (authToken: string, courseId?: st
       const record = data.lesson_progress.find(
         (p) => p.user_id === user.id && p.lesson_id === lesson.id
       );
+      const quizCount = data.lesson_quiz_items.filter(
+        (q) => q.lesson_id === lesson.id && q.course_id === courseId && q.active
+      ).length;
+      const bestQuiz = getBestLessonQuizAttempt(data, user.id, lesson.id);
+
       return {
         lesson_id: lesson.id,
         completed: record?.completed ?? false,
         watch_percent: record?.watch_percent ?? 0,
         unlocked: isLessonUnlocked(data, user.id, courseId, lesson.id, course?.sequential_access),
+        has_quiz: quizCount > 0,
+        quiz_count: quizCount,
+        quiz_score: bestQuiz?.score ?? null,
+        quiz_total: bestQuiz?.total ?? null,
+        quiz_passed: bestQuiz?.passed ?? null,
       };
     });
 
     return {
       global_percent: globalPercent,
       sequential_access: course?.sequential_access !== false,
-      course: courseEntry ?? { course_id: courseId, percent: 0, completed_lessons: 0, total_lessons: 0, completed_lesson_ids: [] },
+      course: courseEntry ?? {
+        course_id: courseId,
+        course_title: course?.title ?? "Cours",
+        percent: 0,
+        completed_lessons: 0,
+        total_lessons: 0,
+        completed_lesson_ids: [],
+      },
       lessons: lessonProgress,
     };
   }
 
   return { global_percent: globalPercent, courses };
+};
+
+export const getStudentProgressSummary = async (authToken: string, courseId?: string) => {
+  const user = await getStudentUserByAuthToken(authToken);
+  if (!user) return null;
+
+  const license = await getStudentLicenseByAuthToken(authToken);
+  const allowed = license ? getAllowedCourseIdsForCard(license.card) : null;
+  const data = await readAdminData();
+  return buildStudentProgressSummary(data, user, courseId, allowed);
+};
+
+/** Progression depuis l'app mobile (auth par device_id) */
+export const getStudentProgressSummaryByDeviceId = async (deviceId: string, courseId?: string) => {
+  const user = await getStudentUserByDeviceId(deviceId);
+  if (!user) return null;
+
+  const license = await getActiveLicenseByDeviceId(deviceId);
+  const allowed = license ? getAllowedCourseIdsForCard(license.card) : null;
+  const data = await readAdminData();
+  return buildStudentProgressSummary(data, user, courseId, allowed);
 };
 
 export const saveUser = async (user: AdminUser): Promise<AdminUser> => {
@@ -1153,6 +1839,12 @@ export const initiateCertificatePayment = async (
   const user = await getStudentUserByAuthToken(authToken);
   if (!user) return { error: "Profil introuvable" };
 
+  const license = await getStudentLicenseByAuthToken(authToken);
+  const allowed = license ? getAllowedCourseIdsForCard(license.card) : null;
+  if (allowed && !allowed.includes(courseId)) {
+    return { error: "Accès refusé pour ce cours" };
+  }
+
   const data = await readAdminData();
   const course = data.courses.find((c) => c.id === courseId);
   if (!course) return { error: "Cours introuvable" };
@@ -1163,7 +1855,7 @@ export const initiateCertificatePayment = async (
   const check = getCertificateEligibility(data, user.id, courseId);
   if (!check.eligible) return { error: check.reason };
 
-  const amount = data.settings.certificate_price;
+  const amount = license?.card.certificate_price_gnf ?? data.settings.certificate_price;
   if (!amount || amount <= 0) return { error: "Prix du certificat non configuré" };
 
   let cert = existing;
@@ -1213,6 +1905,87 @@ export const initiateCertificatePayment = async (
   }
 };
 
+/** Initie le paiement Djomy pour un certificat — app mobile (device_id) */
+export const initiateCertificatePaymentByDeviceId = async (
+  deviceId: string,
+  courseId: string
+): Promise<{ paymentUrl: string; certificateId: string } | { error: string }> => {
+  const license = await getActiveLicenseByDeviceId(deviceId);
+  if (!license) return { error: "Licence invalide ou expirée" };
+
+  const user = license.user ?? (await getStudentUserByDeviceId(deviceId));
+  if (!user) return { error: "Profil introuvable" };
+
+  const allowed = getAllowedCourseIdsForCard(license.card);
+  if (allowed && !allowed.includes(courseId)) {
+    return { error: "Accès refusé pour ce cours" };
+  }
+
+  const { isDjomyConfigured } = await import("@/lib/djomy/config");
+  if (!isDjomyConfigured()) {
+    return { error: "Paiement en ligne non configuré. Contactez l'administrateur." };
+  }
+
+  const data = await readAdminData();
+  const course = data.courses.find((c) => c.id === courseId);
+  if (!course) return { error: "Cours introuvable" };
+
+  const existing = data.certificates.find((c) => c.user_id === user.id && c.course_id === courseId);
+  if (existing?.payment_status === "paid") return { error: "Certificat déjà délivré" };
+
+  const check = getCertificateEligibility(data, user.id, courseId);
+  if (!check.eligible) return { error: check.reason };
+
+  const amount = license.card.certificate_price_gnf ?? data.settings.certificate_price;
+  if (!amount || amount <= 0) return { error: "Prix du certificat non configuré" };
+
+  let cert = existing;
+  if (!cert) {
+    cert = createCertificateRecord(data, user.id, courseId, "pending");
+    data.certificates.push(cert);
+  }
+
+  const { createDjomyPaymentLink } = await import("@/lib/djomy/client");
+  const { getDjomyConfig } = await import("@/lib/djomy/config");
+  const djomyConfig = getDjomyConfig();
+
+  try {
+    const link = await createDjomyPaymentLink({
+      countryCode: "GN",
+      amountToPay: amount,
+      linkName: `Certificat — ${course.title}`,
+      description: `Certificat N'ko — ${course.title}`,
+      merchantReference: cert.id,
+      returnUrl: `${djomyConfig.webUrl}/dashboard/certificates/payment/return?cert_id=${cert.id}&source=mobile`,
+      cancelUrl: `${djomyConfig.webUrl}/dashboard/certificates/payment/cancel?cert_id=${cert.id}&source=mobile`,
+      metadata: {
+        certificate_id: cert.id,
+        course_id: courseId,
+        user_id: user.id,
+        source: "mobile",
+      },
+    });
+
+    cert.djomy_link_reference = link.paymentLinkReference;
+    cert.requested_at = cert.requested_at ?? new Date().toISOString();
+
+    pushAdminNotification(data, {
+      type: "certificate_pending",
+      title: "Paiement certificat initié (mobile)",
+      message: `${user.name} a lancé le paiement mobile pour « ${course.title} »`,
+      link: "/admin/certificates",
+      metadata: { certificate_id: cert.id, user_id: user.id },
+    });
+
+    await writeAdminData(data);
+
+    return { paymentUrl: link.paymentPageUrl, certificateId: cert.id };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur paiement Djomy";
+    return { error: message };
+  }
+};
+
 /** Approuve une demande en attente */
 export const approveCertificate = async (certId: string): Promise<AdminCertificate | null> => {
   const data = await readAdminData();
@@ -1226,15 +1999,15 @@ export const approveCertificate = async (certId: string): Promise<AdminCertifica
 };
 
 /** Certificats et éligibilité pour l'élève connecté */
-export const getStudentCertificatesOverview = async (authToken: string) => {
-  const user = await getStudentUserByAuthToken(authToken);
-  if (!user) return null;
-
-  const data = await readAdminData();
+const buildStudentCertificatesOverview = (data: AdminData, user: AdminUser, allowedCourseIds?: string[] | null, certificatePriceOverride?: number) => {
   const myCerts = data.certificates.filter((c) => c.user_id === user.id);
 
   const publishedCourses = data.courses.filter((c) => c.status === "published");
-  const eligibility = publishedCourses.map((course) => {
+  const scopedCourses = allowedCourseIds
+    ? publishedCourses.filter((c) => allowedCourseIds.includes(c.id))
+    : publishedCourses;
+
+  const eligibility = scopedCourses.map((course) => {
     const cert = myCerts.find((c) => c.course_id === course.id);
     const check = getCertificateEligibility(data, user.id, course.id);
 
@@ -1275,8 +2048,31 @@ export const getStudentCertificatesOverview = async (authToken: string) => {
     certificates,
     eligibility,
     issued_count: issuedCount,
-    certificate_price: data.settings.certificate_price,
+    certificate_price: certificatePriceOverride ?? data.settings.certificate_price,
   };
+};
+
+export const getStudentCertificatesOverview = async (authToken: string) => {
+  const user = await getStudentUserByAuthToken(authToken);
+  if (!user) return null;
+
+  const license = await getStudentLicenseByAuthToken(authToken);
+  const allowed = license ? getAllowedCourseIdsForCard(license.card) : null;
+  const certPrice = license?.card.certificate_price_gnf;
+  const data = await readAdminData();
+  return buildStudentCertificatesOverview(data, user, allowed, certPrice);
+};
+
+/** Certificats depuis l'app mobile (auth par device_id) */
+export const getStudentCertificatesOverviewByDeviceId = async (deviceId: string) => {
+  const user = await getStudentUserByDeviceId(deviceId);
+  if (!user) return null;
+
+  const license = await getActiveLicenseByDeviceId(deviceId);
+  const allowed = license ? getAllowedCourseIdsForCard(license.card) : null;
+  const certPrice = license?.card.certificate_price_gnf;
+  const data = await readAdminData();
+  return buildStudentCertificatesOverview(data, user, allowed, certPrice);
 };
 
 // --- Paramètres ---
@@ -1293,21 +2089,34 @@ export const getPublicCourseDetails = async (courseId: string) => {
   const data = await readAdminData();
   const course = data.courses.find((c) => c.id === courseId && c.status === "published");
   if (!course) return null;
+
+  const quizCountByLesson = new Map<string, number>();
+  for (const item of data.lesson_quiz_items) {
+    if (item.course_id === courseId && item.active) {
+      quizCountByLesson.set(item.lesson_id, (quizCountByLesson.get(item.lesson_id) ?? 0) + 1);
+    }
+  }
+
   return {
     ...course,
     chapters: data.chapters.filter((c) => c.course_id === courseId).sort((a, b) => a.order - b.order),
     lessons: data.lessons
       .filter((l) => l.course_id === courseId)
       .sort((a, b) => a.order - b.order)
-      .map((l) => ({
-        id: l.id,
-        course_id: l.course_id,
-        chapter_id: l.chapter_id,
-        title: l.title,
-        order: l.order,
-        duration_minutes: l.duration_minutes,
-        has_video: Boolean(l.video_id),
-      })),
+      .map((l) => {
+        const quizCount = quizCountByLesson.get(l.id) ?? 0;
+        return {
+          id: l.id,
+          course_id: l.course_id,
+          chapter_id: l.chapter_id,
+          title: l.title,
+          order: l.order,
+          duration_minutes: l.duration_minutes,
+          has_video: Boolean(l.video_id),
+          has_quiz: quizCount > 0,
+          quiz_count: quizCount,
+        };
+      }),
   };
 };
 
@@ -1319,6 +2128,12 @@ export const canStudentAccessLesson = async (
 ): Promise<{ allowed: boolean; reason?: string }> => {
   const user = await getStudentUserByAuthToken(authToken);
   if (!user) return { allowed: false, reason: "Profil introuvable" };
+
+  const license = await getStudentLicenseByAuthToken(authToken);
+  const allowed = license ? getAllowedCourseIdsForCard(license.card) : null;
+  if (allowed && !allowed.includes(courseId)) {
+    return { allowed: false, reason: "Accès refusé pour ce cours" };
+  }
 
   const data = await readAdminData();
   const course = data.courses.find((c) => c.id === courseId && c.status === "published");

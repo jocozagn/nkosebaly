@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import NavigationProgress from "@/components/ui/NavigationProgress";
+import { BRAND } from "@/constants/brand";
 
 /** Langue par défaut — sans appel API externe (évite les retards au chargement) */
 const defaultLang = {
@@ -22,9 +23,17 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: process.env.NEXT_PUBLIC_TITLE,
-  description: process.env.NEXT_PUBLIC_DESCRIPTION,
-  keywords: process.env.NEXT_PUBLIC_KEYWORDS,
+  title: process.env.NEXT_PUBLIC_TITLE || `${BRAND.name} - ${BRAND.tagline}`,
+  description:
+    process.env.NEXT_PUBLIC_DESCRIPTION ||
+    `Plateforme d'apprentissage du N'ko Mandingue avec ${BRAND.name}.`,
+  keywords: process.env.NEXT_PUBLIC_KEYWORDS || `N'ko,Mandingue,${BRAND.name}`,
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({

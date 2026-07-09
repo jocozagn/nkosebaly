@@ -66,7 +66,7 @@ const AdminDashboard = () => {
       </div>
 
       <div className="bg-white rounded-lg border border-[#e8ddd4] p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <h3 className="font-semibold" style={{ color: "var(--brand-brown)" }}>Cours récents</h3>
           <Link
             href="/admin/courses/new"

@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getCookieWriteOptions } from "@/lib/cookie-options";
 import { setLicenseCookies, setProfileCompleteCookie } from "@/lib/license/cookies";
 import { setupDevLicenseForToken } from "@/lib/license/dev-setup";
 
 /**
  * Connexion de test sans APK — active aussi licence + profil en une étape.
  */
-export const POST = async (): Promise<NextResponse> => {
+export const POST = async (request: NextRequest): Promise<NextResponse> => {
   const isDev = process.env.NODE_ENV === "development";
   const devBypass = process.env.NEXT_PUBLIC_DEV_BYPASS === "true";
 
@@ -29,17 +30,19 @@ export const POST = async (): Promise<NextResponse> => {
       : { license_activated: false },
   });
 
+  const cookieOpts = getCookieWriteOptions(request);
+
   response.cookies.set("auth_token", testToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: cookieOpts.secure,
+    sameSite: cookieOpts.sameSite,
     maxAge: 365 * 24 * 60 * 60,
     path: "/",
   });
 
   if (setup.ok) {
-    setLicenseCookies(response, deviceId, setup.cardId);
-    setProfileCompleteCookie(response);
+    setLicenseCookies(response, deviceId, setup.cardId, cookieOpts);
+    setProfileCompleteCookie(response, cookieOpts);
   }
 
   return response;

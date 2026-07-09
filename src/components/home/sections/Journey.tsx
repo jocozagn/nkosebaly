@@ -12,11 +12,12 @@ import { useTranslation } from '@/hooks/useTranslation';
 import CustomImageTag from '@/components/commonComp/customImage/CustomImageTag';
 import { useSelector } from 'react-redux';
 import { settingsSelector } from '@/redux/reducers/settingsSlice';
+import { BRAND } from '@/constants/brand';
 
 const Journey: React.FC = () => {
     const { t } = useTranslation();
     const settings = useSelector(settingsSelector);
-    const companyName = settings?.data?.app_name || process.env.NEXT_PUBLIC_WEB_NAME || 'eLMS';
+    const companyName = settings?.data?.app_name || process.env.NEXT_PUBLIC_WEB_NAME || BRAND.name;
     const [loadingCounts, setLoadingCounts] = useState(true);
     const [stats, setStats] = useState<CountsData | null>(null);
 

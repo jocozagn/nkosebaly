@@ -12,7 +12,7 @@ export const GET = async (request: NextRequest): Promise<NextResponse> => {
     );
   }
 
-  const session = getWebSession(token);
+  const session = await getWebSession(token);
 
   if (!session) {
     return NextResponse.json(

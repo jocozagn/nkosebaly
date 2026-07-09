@@ -30,8 +30,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-# .env
+# env files — secrets jamais versionnés
+.env
+.env.local
+.env.*.local
+!.env.example
 
 # vercel
 .vercel
@@ -43,3 +46,11 @@ next-env.d.ts
 # Vidéos hébergées (privées — ne pas versionner)
 /data/videos/*
 !/data/videos/.gitkeep
+
+# Données élèves / licences (prod — ne pas versionner)
+/data/admin/store.json
+/data/admin/store.backup.json
+
+# APK release (déployé manuellement sur le VPS)
+/public/apk/*.apk
+!/public/apk/.gitkeep

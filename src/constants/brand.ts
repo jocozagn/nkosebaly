@@ -1,9 +1,9 @@
 /**
- * Palette officielle Balandou Wourouki Digital
+ * Palette officielle Karamoo Sêebaly
  * Extraite du logo de la marque
  */
 export const BRAND = {
-  name: "Balandou Wourouki Digital",
+  name: "Karamoo Sêebaly",
   tagline: "Apprentissage du N'ko Mandingue",
   logo: "/images/logo-balandou.png",
 

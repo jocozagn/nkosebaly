@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import QRCode from "qrcode";
+import { getRequestBaseUrl } from "@/lib/mobile/request-base-url";
 import { createWebSession, WEB_SESSION_TTL_MS } from "@/lib/webSessionStore";
 
 /** Génère un nouveau QR code de connexion web */
-export const POST = async (): Promise<NextResponse> => {
-  const session = createWebSession();
-  const webUrl = process.env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001";
+export const POST = async (request: NextRequest): Promise<NextResponse> => {
+  const session = await createWebSession();
+  const webUrl = getRequestBaseUrl(request);
 
   // Payload scanné par l'app mobile N'ko
   const qrPayload = JSON.stringify({

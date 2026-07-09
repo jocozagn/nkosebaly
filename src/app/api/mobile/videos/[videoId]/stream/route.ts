@@ -10,7 +10,7 @@ interface RouteParams {
   params: Promise<{ videoId: string }>;
 }
 
-/** Streaming vidéo mobile — header X-Device-Id obligatoire */
+/** Streaming vidéo mobile — auth token mobile (ou fallback device_id) */
 export const GET = async (req: NextRequest, { params }: RouteParams): Promise<NextResponse> => {
   const deviceCheck = await requireMobileDevice(req);
   if (!deviceCheck.ok) return deviceCheck.response;
@@ -19,8 +19,11 @@ export const GET = async (req: NextRequest, { params }: RouteParams): Promise<Ne
   const lessonId = req.nextUrl.searchParams.get("lesson_id");
   const user = deviceCheck.user;
 
-  if (!lessonId || !user) {
-    return NextResponse.json({ error: true, message: "lesson_id et profil requis" }, { status: 400 });
+  if (!lessonId) {
+    return NextResponse.json({ error: true, message: "lesson_id requis" }, { status: 400 });
+  }
+  if (!user) {
+    return NextResponse.json({ error: true, message: "Profil requis" }, { status: 403 });
   }
 
   const data = await readAdminData();
@@ -30,8 +33,14 @@ export const GET = async (req: NextRequest, { params }: RouteParams): Promise<Ne
   }
 
   const course = data.courses.find((c) => c.id === lesson.course_id && c.status === "published");
-  if (!course || !isLessonUnlocked(data, user.id, lesson.course_id, lessonId, course.sequential_access)) {
-    return NextResponse.json({ error: true, message: "Accès refusé" }, { status: 403 });
+  if (!course) {
+    return NextResponse.json({ error: true, message: "Cours introuvable ou non publié" }, { status: 404 });
+  }
+  if (!isLessonUnlocked(data, user.id, lesson.course_id, lessonId, course.sequential_access)) {
+    return NextResponse.json(
+      { error: true, message: "Terminez les leçons précédentes" },
+      { status: 403 }
+    );
   }
 
   if (!(await videoExists(videoId))) {

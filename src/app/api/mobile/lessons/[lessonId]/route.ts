@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLessonForPlayback, readAdminData } from "@/lib/admin/store";
+import {
+  getLessonForPlayback,
+  getLessonReactionStats,
+  readAdminData,
+} from "@/lib/admin/store";
+import { getVoterIdFromDeviceId } from "@/lib/auth/voter-id";
 import { requireMobileDevice } from "@/lib/mobile/require-device";
+import { getRequestBaseUrl } from "@/lib/mobile/request-base-url";
 import { isLessonUnlocked } from "@/lib/progress/lesson-access";
 
-/** Métadonnées leçon + URL streaming pour l'app mobile */
+/** Métadonnées leçon + streaming + engagement pour l'app mobile */
 export const GET = async (
   req: NextRequest,
   { params }: { params: Promise<{ lessonId: string }> }
@@ -34,7 +40,9 @@ export const GET = async (
     return NextResponse.json({ error: true, message: "Leçon introuvable" }, { status: 404 });
   }
 
-  const webUrl = (process.env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001").replace(/\/$/, "");
+  const webUrl = getRequestBaseUrl(req);
+  const voterId = getVoterIdFromDeviceId(deviceCheck.deviceId);
+  const reactionStats = await getLessonReactionStats(lessonId, voterId);
 
   return NextResponse.json({
     error: false,
@@ -46,6 +54,16 @@ export const GET = async (
       duration_minutes: playback.lesson.duration_minutes,
       stream_url: `${webUrl}/api/mobile/videos/${playback.lesson.video_id}/stream?lesson_id=${lessonId}`,
       download_url: `${webUrl}/api/mobile/videos/${playback.lesson.video_id}/download?lesson_id=${lessonId}`,
+      attachments: playback.attachments.map((att) => ({
+        ...att,
+        download_url: `${webUrl}/api/mobile/attachments/${att.id}/download`,
+      })),
+      questions: playback.questions,
+      reactions: {
+        likes: reactionStats.likes,
+        dislikes: reactionStats.dislikes,
+        user_vote: reactionStats.user_vote,
+      },
     },
   });
 };

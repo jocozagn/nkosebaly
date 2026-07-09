@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminRequest } from "@/lib/admin/auth";
 import { deleteCourse, getCourseById, saveCourse } from "@/lib/admin/store";
 import type { CourseLevel, CourseStatus } from "@/lib/admin/types";
-
-const isAdmin = (request: NextRequest): boolean => Boolean(request.cookies.get("admin_token")?.value);
 
 export const GET = async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> => {
-  if (!isAdmin(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 
@@ -26,7 +25,7 @@ export const PUT = async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> => {
-  if (!isAdmin(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 
@@ -58,7 +57,7 @@ export const DELETE = async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> => {
-  if (!isAdmin(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 

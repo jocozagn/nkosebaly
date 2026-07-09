@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, PlayCircle, BookOpen, Lock, CheckCircle2, Award } from "lucide-react";
+import { ArrowLeft, PlayCircle, BookOpen, Lock, CheckCircle2, Award, ClipboardList } from "lucide-react";
 import NkoShell from "./NkoShell";
 import BrandLoader from "@/components/ui/BrandLoader";
 import ProgressBar from "@/components/nko/ProgressBar";
@@ -16,6 +16,8 @@ interface PublicLesson {
   order: number;
   duration_minutes: number;
   has_video: boolean;
+  has_quiz?: boolean;
+  quiz_count?: number;
 }
 
 interface PublicChapter {
@@ -39,6 +41,10 @@ interface LessonProgressEntry {
   completed: boolean;
   watch_percent: number;
   unlocked?: boolean;
+  has_quiz?: boolean;
+  quiz_score?: number | null;
+  quiz_total?: number | null;
+  quiz_passed?: boolean | null;
 }
 
 interface NkoCourseDetailPageProps {
@@ -218,14 +224,15 @@ const NkoCourseDetailPage = ({ courseId }: NkoCourseDetailPageProps) => {
                       return (
                         <div
                           key={lesson.id}
-                          className={`flex items-center gap-3 px-4 py-3 ${isLocked ? "opacity-60" : ""}`}
+                          className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 px-3 sm:px-4 py-3 ${isLocked ? "opacity-60" : ""}`}
                         >
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
                           {isCompleted ? (
-                            <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-green-600" aria-label="Leçon terminée" />
+                            <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-green-600 mt-0.5" aria-label="Leçon terminée" />
                           ) : isLocked ? (
-                            <Lock className="w-5 h-5 flex-shrink-0" style={{ color: "var(--brand-gray)" }} aria-label="Leçon verrouillée" />
+                            <Lock className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "var(--brand-gray)" }} aria-label="Leçon verrouillée" />
                           ) : (
-                            <PlayCircle className="w-5 h-5 flex-shrink-0" style={{ color: "var(--brand-sky)" }} />
+                            <PlayCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "var(--brand-sky)" }} />
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate" style={{ color: "var(--brand-black)" }}>{lesson.title}</p>
@@ -236,11 +243,21 @@ const NkoCourseDetailPage = ({ courseId }: NkoCourseDetailPageProps) => {
                                 : ""}
                               {isCompleted ? " · Terminée" : isLocked ? " · Verrouillée" : ""}
                             </p>
+                            {(lesson.has_quiz || progress?.has_quiz) && (
+                              <p className="text-xs mt-1 flex items-center gap-1" style={{ color: "var(--brand-brown)" }}>
+                                <ClipboardList className="w-3 h-3 flex-shrink-0" />
+                                Exercice
+                                {progress?.quiz_score != null && progress.quiz_total != null
+                                  ? ` · Score ${progress.quiz_score}/${progress.quiz_total}${progress.quiz_passed ? " ✓" : ""}`
+                                  : ""}
+                              </p>
+                            )}
+                          </div>
                           </div>
                           {lesson.has_video ? (
                             isLocked ? (
                               <span
-                                className="text-xs px-3 py-1.5 rounded flex-shrink-0 flex items-center gap-1 border border-[#e8ddd4]"
+                                className="text-xs px-3 py-2 rounded flex-shrink-0 flex items-center justify-center gap-1 border border-[#e8ddd4] w-full sm:w-auto"
                                 style={{ color: "var(--brand-gray)" }}
                               >
                                 <Lock className="w-3 h-3" />
@@ -249,7 +266,7 @@ const NkoCourseDetailPage = ({ courseId }: NkoCourseDetailPageProps) => {
                             ) : (
                               <Link
                                 href={`/dashboard/courses/${courseId}/lessons/${lesson.id}`}
-                                className="text-xs px-3 py-1.5 rounded text-white flex-shrink-0 flex items-center gap-1"
+                                className="text-xs px-3 py-2 rounded text-white flex-shrink-0 flex items-center justify-center gap-1 w-full sm:w-auto"
                                 style={{ backgroundColor: "var(--brand-brown)" }}
                               >
                                 <PlayCircle className="w-3 h-3" />

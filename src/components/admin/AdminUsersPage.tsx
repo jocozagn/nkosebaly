@@ -5,9 +5,14 @@ import { Plus } from "lucide-react";
 import BrandLoader from "@/components/ui/BrandLoader";
 import type { AdminUser } from "@/lib/admin/types";
 
+interface AdminUserRow extends AdminUser {
+  lessons_completed?: number;
+  lessons_total?: number;
+}
+
 /** Gestion des étudiants inscrits via activation licence */
 const AdminUsersPage = () => {
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -18,7 +23,8 @@ const AdminUsersPage = () => {
       .then((res) => {
         if (!res.error) setUsers(res.data ?? []);
         setIsLoading(false);
-      });
+      })
+      .catch(() => setIsLoading(false));
   };
 
   useEffect(() => {
@@ -64,13 +70,13 @@ const AdminUsersPage = () => {
         ) : users.length === 0 ? (
           <p className="p-8 text-center text-sm" style={{ color: "var(--brand-gray)" }}>Aucun étudiant enregistré</p>
         ) : (
-          <table className="w-full text-sm min-w-[640px]">
+          <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-[var(--brand-bg)]">
               <tr className="text-left" style={{ color: "var(--brand-gray)" }}>
                 <th className="px-4 py-3 font-medium">Nom</th>
                 <th className="px-4 py-3 font-medium">Téléphone</th>
                 <th className="px-4 py-3 font-medium">Ville</th>
-                <th className="px-4 py-3 font-medium">Progression</th>
+                <th className="px-4 py-3 font-medium min-w-[180px]">Progression</th>
                 <th className="px-4 py-3 font-medium">Inscrit le</th>
               </tr>
             </thead>
@@ -88,7 +94,27 @@ const AdminUsersPage = () => {
                     {user.email && <p className="text-xs" style={{ color: "var(--brand-gray)" }}>{user.email}</p>}
                   </td>
                   <td className="px-4 py-3">{user.city ?? "—"}</td>
-                  <td className="px-4 py-3">{user.progress_percent}%</td>
+                  <td className="px-4 py-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold" style={{ color: "var(--brand-brown)" }}>
+                          {user.progress_percent}%
+                        </span>
+                        <span style={{ color: "var(--brand-gray)" }}>
+                          {user.lessons_completed ?? 0}/{user.lessons_total ?? 0} leçon(s)
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full overflow-hidden bg-[#e8ddd4]">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${user.progress_percent}%`,
+                            backgroundColor: "var(--brand-sky)",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-xs" style={{ color: "var(--brand-gray)" }}>
                     {new Date(user.created_at).toLocaleDateString("fr-FR")}
                   </td>

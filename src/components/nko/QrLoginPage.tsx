@@ -102,12 +102,12 @@ const QrLoginPage = () => {
 
     if (!result.error) {
       triggerNavigationStart();
-      router.replace("/dashboard");
+      window.location.assign("/dashboard");
       return;
     }
 
     setIsConnecting(false);
-  }, [router]);
+  }, []);
 
   const startPolling = useCallback((token: string): void => {
     if (pollingRef.current) clearInterval(pollingRef.current);
@@ -183,11 +183,14 @@ const QrLoginPage = () => {
             />
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-[#e8ddd4] p-6 md:p-8">
+          <div className="bg-white rounded-lg shadow-sm border border-[#e8ddd4] p-4 sm:p-6 md:p-8 w-full">
             <div className="text-center mb-6">
               <h1 className="text-xl md:text-2xl font-bold mb-1" style={{ color: "var(--brand-brown)" }}>
-                Connexion à la plateforme
+                {BRAND.name}
               </h1>
+              <p className="text-sm font-medium mb-1" style={{ color: "var(--brand-black)" }}>
+                Connexion à la plateforme
+              </p>
               <p className="text-sm" style={{ color: "var(--brand-gray)" }}>
                 Scannez le QR code avec votre application
               </p>
@@ -196,13 +199,13 @@ const QrLoginPage = () => {
             {/* Barre accent dorée */}
             <div className="h-1 w-16 mx-auto mb-6 bg-[var(--brand-gold)]" aria-hidden="true" />
 
-            <div className="flex flex-col items-center mb-6">
+            <div className="flex flex-col items-center mb-6 w-full">
               {isLoading ? (
-                <div className="w-[280px] h-[280px] flex items-center justify-center rounded-lg border border-[#e8ddd4]" style={{ backgroundColor: "var(--brand-bg)" }}>
+                <div className="w-full max-w-[280px] aspect-square flex items-center justify-center rounded-lg border border-[#e8ddd4]" style={{ backgroundColor: "var(--brand-bg)" }}>
                   <BrandLoader compact message="Génération du QR code..." />
                 </div>
               ) : isExpired ? (
-                <div className="w-[280px] h-[280px] flex flex-col items-center justify-center rounded-lg border border-dashed border-[#d4c4b5] gap-3" style={{ backgroundColor: "var(--brand-bg)" }}>
+                <div className="w-full max-w-[280px] aspect-square flex flex-col items-center justify-center rounded-lg border border-dashed border-[#d4c4b5] gap-3 px-4" style={{ backgroundColor: "var(--brand-bg)" }}>
                   <p className="text-sm" style={{ color: "var(--brand-gray)" }}>QR code expiré</p>
                   <button
                     type="button"
@@ -216,14 +219,12 @@ const QrLoginPage = () => {
                   </button>
                 </div>
               ) : (
-                <div className="relative p-3 rounded-xl border-2" style={{ borderColor: "var(--brand-sky)" }}>
+                <div className="relative w-full max-w-[280px] p-2 sm:p-3 rounded-xl border-2" style={{ borderColor: "var(--brand-sky)" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={qrImage}
                     alt="QR code de connexion"
-                    width={280}
-                    height={280}
-                    className="rounded-lg"
+                    className="w-full h-auto rounded-lg"
                   />
                   {isConnecting && (
                     <div className="absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center">

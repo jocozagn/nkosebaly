@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { activateLicenseCard, registerStudentProfile } from "@/lib/admin/store";
+import { activateLicenseCard, createMobileAuthSession, registerStudentProfile } from "@/lib/admin/store";
 import { validateStudentProfile } from "@/lib/admin/profile";
 import { parseLicenseQrPayload } from "@/lib/license/qr-payload";
 
@@ -12,7 +12,9 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
 
   let cardId = body?.card_id as string | undefined;
   let token = body?.token as string | undefined;
-  const deviceId = body?.device_id as string | undefined;
+  // On n'utilise plus device_id pour le mobile (on passe par un token).
+  // On garde un fallback interne pour conserver la compatibilité des données user/progress existantes.
+  const fallbackDeviceId = body?.device_id as string | undefined;
 
   if (body?.qr_data) {
     const parsed = parseLicenseQrPayload(String(body.qr_data));
@@ -23,9 +25,9 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
     token = parsed.token;
   }
 
-  if (!cardId || !token || !deviceId) {
+  if (!cardId || !token) {
     return NextResponse.json(
-      { error: true, message: "qr_data (ou card_id + token), device_id et profil requis" },
+      { error: true, message: "qr_data (ou card_id + token) et profil requis" },
       { status: 400 }
     );
   }
@@ -42,13 +44,15 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
     return NextResponse.json({ error: true, message: profileCheck.message }, { status: 400 });
   }
 
-  const result = await activateLicenseCard(cardId, token, deviceId);
+  const deviceIdForData = fallbackDeviceId?.trim() || `card-${cardId}`;
+  const result = await activateLicenseCard(cardId, token, deviceIdForData);
 
   if (!result.success) {
     return NextResponse.json({ error: true, message: result.message }, { status: 403 });
   }
 
-  const user = await registerStudentProfile(deviceId, result.card.id, profileCheck.data);
+  const user = await registerStudentProfile(deviceIdForData, result.card.id, profileCheck.data);
+  const mobileSession = await createMobileAuthSession(result.card.id);
 
   return NextResponse.json({
     error: false,
@@ -58,6 +62,7 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
       expires_at: result.card.expires_at,
       activated_at: result.card.activated_at,
       user_id: user.id,
+      mobile_token: mobileSession.mobile_token,
       profile: profileCheck.data,
     },
   });

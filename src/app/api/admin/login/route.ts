@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminCredentials, signAdminToken, ADMIN_TOKEN_COOKIE } from "@/lib/admin/auth";
 
 /** Connexion administrateur (email + mot de passe) */
 export const POST = async (request: NextRequest): Promise<NextResponse> => {
@@ -6,23 +7,43 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
   const email = body?.email as string | undefined;
   const password = body?.password as string | undefined;
 
-  const adminEmail = process.env.ADMIN_EMAIL ?? "admin@balandou.local";
-  const adminPassword = process.env.ADMIN_PASSWORD ?? "admin123";
+  const credentials = getAdminCredentials();
+  if (!credentials) {
+    return NextResponse.json(
+      { error: true, message: "Configuration admin incomplète sur le serveur" },
+      { status: 503 }
+    );
+  }
 
   if (!email || !password) {
     return NextResponse.json({ error: true, message: "Email et mot de passe requis" }, { status: 400 });
   }
 
-  if (email !== adminEmail || password !== adminPassword) {
+  if (email !== credentials.email || password !== credentials.password) {
     return NextResponse.json({ error: true, message: "Identifiants incorrects" }, { status: 401 });
+  }
+
+  const adminToken = signAdminToken(credentials.email);
+  if (!adminToken) {
+    return NextResponse.json(
+      {
+        error: true,
+        message: "Configuration serveur incomplète (ADMIN_SESSION_SECRET). Contactez l'administrateur système.",
+      },
+      { status: 503 }
+    );
   }
 
   const response = NextResponse.json({ error: false, message: "Connexion réussie" });
 
-  response.cookies.set("admin_token", `admin-${crypto.randomUUID()}`, {
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const isHttpsRequest =
+    forwardedProto === "https" || request.nextUrl.protocol === "https:";
+
+  response.cookies.set(ADMIN_TOKEN_COOKIE, adminToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production" && isHttpsRequest,
+    sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60,
     path: "/",
   });

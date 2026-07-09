@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminRequest } from "@/lib/admin/auth";
 import { saveVideoFile } from "@/lib/videos/storage";
-
-const isAdmin = (req: NextRequest): boolean => Boolean(req.cookies.get("admin_token")?.value);
 
 /** Upload vidéo admin — stockage privé sur le serveur */
 export const POST = async (req: NextRequest): Promise<NextResponse> => {
-  if (!isAdmin(req)) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 

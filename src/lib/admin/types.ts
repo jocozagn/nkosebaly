@@ -67,6 +67,71 @@ export interface AdminLessonReaction {
   created_at: string;
 }
 
+/** Fichier média utilisé dans un quiz de leçon (audio ou image) */
+export interface LessonQuizMediaFile {
+  file_id: string;
+  mime_type: string;
+  original_name: string;
+}
+
+/** Types d'exercices quiz par leçon */
+export type LessonQuizType =
+  | "single_choice"
+  | "multiple_choice"
+  | "audio_pick_image"
+  | "dictation"
+  | "fill_blank_suggestions";
+
+interface LessonQuizBase {
+  id: string;
+  lesson_id: string;
+  course_id: string;
+  order: number;
+  type: LessonQuizType;
+  prompt_text?: string;
+  active: boolean;
+  created_at: string;
+}
+
+/** Exercice quiz rattaché à une leçon (5 types supportés) */
+export type AdminLessonQuizItem =
+  | (LessonQuizBase & {
+      type: "single_choice";
+      options: string[];
+      correct_index: number;
+    })
+  | (LessonQuizBase & {
+      type: "multiple_choice";
+      options: string[];
+      correct_indices: number[];
+    })
+  | (LessonQuizBase & {
+      type: "audio_pick_image";
+      audio: LessonQuizMediaFile;
+      image_options: LessonQuizMediaFile[];
+      correct_image_index: number;
+    })
+  | (LessonQuizBase & {
+      type: "dictation";
+      audio: LessonQuizMediaFile;
+      expected_answer: string;
+      accept_variants?: string[];
+    })
+  | (LessonQuizBase & {
+      type: "fill_blank_suggestions";
+      sentence_template: string;
+      suggestions: string[];
+      correct_word: string;
+    });
+
+/** Réponse élève soumise pour un item de quiz leçon */
+export type StudentLessonQuizAnswerPayload =
+  | { item_id: string; type: "single_choice"; selected: number }
+  | { item_id: string; type: "multiple_choice"; selected: number[] }
+  | { item_id: string; type: "audio_pick_image"; selected: number }
+  | { item_id: string; type: "dictation"; text: string }
+  | { item_id: string; type: "fill_blank_suggestions"; word: string };
+
 export interface AdminCourse {
   id: string;
   title: string;
@@ -100,6 +165,22 @@ export interface AdminLicenseCard {
   /** Secret d'activation — encodé uniquement dans le QR verso */
   activation_token: string;
   duration_months: CardDurationMonths;
+  /**
+   * Accès aux cours :
+   * - undefined / [] : accès à tous les cours publiés
+   * - ["courseId1","courseId2"] : accès uniquement à ces cours
+   */
+  allowed_course_ids?: string[];
+  /**
+   * Prix d'achat de la carte licence (vente) — affichage/admin uniquement.
+   * (Le paiement en ligne n'est pas encore branché à ce niveau.)
+   */
+  card_price_gnf?: number;
+  /**
+   * Optionnel : prix de certificat spécifique à cette carte.
+   * Si absent : on utilise settings.certificate_price (global).
+   */
+  certificate_price_gnf?: number;
   status: CardStatus;
   device_id?: string;
   activated_at?: string;
@@ -158,6 +239,13 @@ export interface StudentAuthSession {
   linked_at: string;
 }
 
+/** Session auth mobile (remplace le device_id) */
+export interface MobileAuthSession {
+  mobile_token: string;
+  license_card_id: string;
+  linked_at: string;
+}
+
 /** Progression d'un élève sur une leçon */
 export interface StudentLessonProgress {
   id: string;
@@ -170,6 +258,75 @@ export interface StudentLessonProgress {
   updated_at: string;
 }
 
+/** Temps passé par un élève sur une journée (agrégé) */
+export interface StudentDailyActivity {
+  id: string;
+  user_id: string;
+  /** Format YYYY-MM-DD (fuseau client ou serveur) */
+  date: string;
+  total_seconds: number;
+  /** Temps par leçon ce jour-là (lesson_id → secondes) */
+  by_lesson: Record<string, number>;
+  updated_at: string;
+}
+
+/** Statistiques de visionnage par leçon ou cours */
+export interface ContentWatchStats {
+  id: string;
+  content_id: string;
+  type: "lesson" | "course";
+  course_id?: string;
+  total_seconds: number;
+  view_count: number;
+  unique_users: string[];
+  updated_at: string;
+}
+
+/** Événement envoyé par mobile/web (sync ou heartbeat) */
+export interface WatchActivityPayload {
+  course_id: string;
+  lesson_id: string;
+  watch_percent?: number;
+  seconds_watched?: number;
+  event_type: "heartbeat" | "lesson_open";
+  source: "mobile" | "web";
+  client_timestamp?: string;
+  offline?: boolean;
+}
+
+/** Résumé analytics pour le tableau de bord admin */
+export interface AdminAnalyticsSummary {
+  days: number;
+  totals: {
+    watch_seconds: number;
+    active_students: number;
+    lesson_views: number;
+  };
+  students: {
+    user_id: string;
+    name: string;
+    total_seconds: number;
+    today_seconds: number;
+    last_active_date?: string;
+    daily: { date: string; seconds: number }[];
+  }[];
+  top_lessons: {
+    lesson_id: string;
+    lesson_title: string;
+    course_title: string;
+    total_seconds: number;
+    view_count: number;
+    unique_students: number;
+  }[];
+  top_courses: {
+    course_id: string;
+    course_title: string;
+    total_seconds: number;
+    view_count: number;
+    unique_students: number;
+  }[];
+}
+
 /** Tentative de quiz certifiant par un élève */
 export interface StudentQuizAttempt {
   id: string;
@@ -179,6 +336,20 @@ export interface StudentQuizAttempt {
   total: number;
   passed: boolean;
   answers: { question_id: string; selected: number; correct: boolean }[];
+  created_at: string;
+}
+
+/** Tentative d'exercice quiz de leçon (score enregistré par élève) */
+export interface StudentLessonQuizAttempt {
+  id: string;
+  user_id: string;
+  course_id: string;
+  lesson_id: string;
+  score: number;
+  total: number;
+  passed: boolean;
+  pass_required: number;
+  details: { item_id: string; correct: boolean }[];
   created_at: string;
 }
 
@@ -218,11 +389,16 @@ export interface AdminData {
   lesson_attachments: AdminLessonAttachment[];
   lesson_questions: AdminLessonQuestion[];
   lesson_reactions: AdminLessonReaction[];
+  lesson_quiz_items: AdminLessonQuizItem[];
   quiz_questions: AdminQuizQuestion[];
   license_cards: AdminLicenseCard[];
   student_auth_sessions: StudentAuthSession[];
+  mobile_auth_sessions: MobileAuthSession[];
   lesson_progress: StudentLessonProgress[];
+  student_daily_activity: StudentDailyActivity[];
+  content_watch_stats: ContentWatchStats[];
   quiz_attempts: StudentQuizAttempt[];
+  lesson_quiz_attempts: StudentLessonQuizAttempt[];
   users: AdminUser[];
   certificates: AdminCertificate[];
   notifications: AdminNotification[];

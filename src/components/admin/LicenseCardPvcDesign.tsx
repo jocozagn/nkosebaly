@@ -3,14 +3,36 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import QRCode from "qrcode";
+import {
+  Download,
+  Globe,
+  Link2,
+  Mail,
+  Phone,
+} from "lucide-react";
 import { BRAND } from "@/constants/brand";
 import { buildLicenseQrPayload } from "@/lib/license/qr-payload";
 import type { AdminLicenseCard, CardDurationMonths } from "@/lib/admin/types";
 
-const DURATION_STYLES: Record<CardDurationMonths, { bg: string; label: string }> = {
-  3: { bg: "#29B6F6", label: "3 MOIS" },
-  6: { bg: "#8BC34A", label: "6 MOIS" },
-  12: { bg: "#E8B923", label: "12 MOIS" },
+/** Palette PVC premium (inspirée maquette CR80) */
+const CARD = {
+  brunFonce: "#2b2118",
+  brun: "#3a2a1c",
+  brunClair: "#5c4630",
+  or: "#c9a227",
+  orClair: "#e8bf5d",
+  creme: "#f2e9d8",
+  cremeMat: "#cbbfa6",
+  bleu: "#2f7bc4",
+  bleuClair: "#eaf3fc",
+  bandeau: "#1c150f",
+  piedText: "#a9977c",
+} as const;
+
+const DURATION_LABELS: Record<CardDurationMonths, string> = {
+  3: "3 mois",
+  6: "6 mois",
+  12: "12 mois",
 };
 
 interface LicenseCardPvcDesignProps {
@@ -19,144 +41,174 @@ interface LicenseCardPvcDesignProps {
   className?: string;
 }
 
+const cardShell =
+  "license-pvc-card relative overflow-hidden rounded-[3mm] shadow-lg text-[#f2e9d8]";
+
 /**
- * Carte PVC CR80 — licence UNIQUEMENT dans le QR au verso.
- * Recto : marque + durée (aucun code visible).
+ * Carte PVC CR80 — recto marque + QR app, verso QR licence (code caché).
+ * Layout aligné sur la maquette Karamoo Sêebaly (85,6 × 53,98 mm).
  */
 const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCardPvcDesignProps) => {
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [appQrDataUrl, setAppQrDataUrl] = useState("");
 
-  const durationStyle = DURATION_STYLES[card.duration_months];
   const qrPayload = buildLicenseQrPayload(card.id, card.activation_token ?? "");
+  const webBaseUrl = (process.env.NEXT_PUBLIC_WEB_URL ?? "https://silycor.xyz").replace(/\/$/, "");
+  const shortHost = webBaseUrl.replace(/^https?:\/\//, "");
+  const appDownloadUrl = `${webBaseUrl}/get-app`;
 
   useEffect(() => {
     if (!card.activation_token) return;
     QRCode.toDataURL(qrPayload, {
-      width: 200,
+      width: 220,
       margin: 1,
       errorCorrectionLevel: "M",
-      color: { dark: BRAND.colors.brownDark, light: "#FFFFFF" },
+      color: { dark: CARD.brunFonce, light: "#FFFFFF" },
     }).then(setQrDataUrl);
   }, [qrPayload, card.activation_token]);
 
-  const cardBaseClass = "license-pvc-card relative overflow-hidden rounded-[3.5mm] shadow-lg";
+  useEffect(() => {
+    QRCode.toDataURL(appDownloadUrl, {
+      width: 220,
+      margin: 1,
+      errorCorrectionLevel: "M",
+      color: { dark: CARD.brunFonce, light: "#FFFFFF" },
+    }).then(setAppQrDataUrl);
+  }, [appDownloadUrl]);
 
-  /** Recto — branding seulement, pas de code */
+  const QrBox = ({ src, size = "18mm" }: { src: string; size?: string }) => (
+    <div
+      className="flex shrink-0 items-center justify-center overflow-hidden rounded-[1.8mm] border-[0.4mm] bg-white"
+      style={{ width: size, height: size, borderColor: CARD.or }}
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" className="h-full w-full object-contain" />
+      ) : (
+        <div className="h-full w-full bg-gray-100" />
+      )}
+    </div>
+  );
+
   const Recto = (
     <div
-      className={`${cardBaseClass} license-pvc-recto`}
-      style={{
-        width: "85.6mm",
-        height: "53.98mm",
-        background: `linear-gradient(135deg, ${BRAND.colors.brown} 0%, ${BRAND.colors.brownDark} 55%, #3D2818 100%)`,
-      }}
+      className={`${cardShell} license-pvc-recto flex flex-col`}
+      style={{ width: "85.6mm", height: "53.98mm", backgroundColor: CARD.brun, padding: "4mm 4.5mm" }}
     >
-      <div className="absolute top-0 left-0 right-0 h-[1.2mm]" style={{ backgroundColor: BRAND.colors.sky }} />
-
-      <div
-        className="absolute inset-0 opacity-[0.07]"
-        style={{
-          backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 2px, #fff 2px, #fff 3px)`,
-        }}
-        aria-hidden="true"
-      />
-
-      <div
-        className="absolute top-[6mm] right-[4mm] w-[18mm] h-[4mm] rounded-sm opacity-80"
-        style={{ background: "linear-gradient(90deg, #C9A96E, #E8B923, #fff, #E8B923, #C9A96E)" }}
-        aria-hidden="true"
-      />
-
-      <div className="relative z-10 flex h-full flex-col items-center justify-center px-[5mm] text-center">
-        <div
-          className="relative mb-[2mm] rounded-full p-[0.5mm]"
-          style={{ boxShadow: `0 0 0 0.8mm ${BRAND.colors.gold}` }}
-        >
-          <Image
-            src={BRAND.logo}
-            alt=""
-            width={48}
-            height={48}
-            className="h-[12mm] w-[12mm] rounded-full object-cover"
-          />
+      {/* En-tête : logo + nom + badge durée */}
+      <div className="flex items-center justify-between gap-[2mm]">
+        <div className="flex min-w-0 items-center gap-[2.5mm]">
+          <div
+            className="flex h-[7mm] w-[7mm] shrink-0 items-center justify-center overflow-hidden rounded-full border-[0.5mm]"
+            style={{ borderColor: CARD.or }}
+          >
+            <Image
+              src={BRAND.logo}
+              alt=""
+              width={28}
+              height={28}
+              className="h-full w-full object-cover"
+            />
+          </div>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-[3.1mm] font-semibold" style={{ color: CARD.creme }}>
+              {BRAND.name}
+            </p>
+            <p className="text-[2.1mm]" style={{ color: CARD.or }}>
+              Licence d&apos;accès · N&apos;ko Mandingue
+            </p>
+          </div>
         </div>
-
-        <p className="text-[2.8mm] font-bold uppercase tracking-wide text-white leading-tight">
-          Balandou Wourouki Digital
-        </p>
-        <p className="mt-[1mm] text-[2mm] font-medium" style={{ color: BRAND.colors.tan }}>
-          Licence d&apos;accès · N&apos;ko Mandingue
-        </p>
-
         <span
-          className="mt-[3mm] rounded-full px-[3mm] py-[1mm] text-[2.4mm] font-bold"
-          style={{
-            backgroundColor: durationStyle.bg,
-            color: card.duration_months === 12 ? BRAND.colors.brownDark : "#fff",
-          }}
+          className="shrink-0 rounded-full px-[2.5mm] py-[1mm] text-[2.3mm] font-semibold whitespace-nowrap"
+          style={{ backgroundColor: CARD.bleu, color: CARD.bleuClair }}
         >
-          {durationStyle.label}
+          {DURATION_LABELS[card.duration_months]}
         </span>
+      </div>
 
-        <p className="mt-[3mm] text-[1.6mm] text-white/60">
-          Retournez la carte et scannez le QR dans l&apos;application
-        </p>
+      {/* Corps : QR app + liens */}
+      <div className="mt-[2.5mm] flex flex-1 items-center gap-[3.5mm]">
+        <QrBox src={appQrDataUrl} />
+        <div className="min-w-0 space-y-[0.8mm]">
+          <p className="flex items-center gap-[1.2mm] text-[2.1mm] font-semibold" style={{ color: CARD.creme }}>
+            <Download className="h-[2.6mm] w-[2.6mm] shrink-0" style={{ color: CARD.or }} aria-hidden />
+            Télécharger l&apos;app
+          </p>
+          <p className="flex items-center gap-[1.2mm] text-[2.1mm]" style={{ color: CARD.cremeMat }}>
+            <Link2 className="h-[2.6mm] w-[2.6mm] shrink-0" style={{ color: CARD.or }} aria-hidden />
+            {shortHost}/get-app
+          </p>
+          <p className="flex items-center gap-[1.2mm] text-[2.1mm]" style={{ color: CARD.cremeMat }}>
+            <Globe className="h-[2.6mm] w-[2.6mm] shrink-0" style={{ color: CARD.or }} aria-hidden />
+            {shortHost}
+          </p>
+        </div>
+      </div>
 
-        <p className="absolute bottom-[2mm] left-0 right-0 text-[1.3mm] text-white/40">
+      {/* Pied recto */}
+      <div className="mt-[1.5mm] border-t pt-[1.5mm] text-center" style={{ borderColor: CARD.brunClair }}>
+        <p
+          className="text-[1.7mm] uppercase tracking-[0.3mm]"
+          style={{ color: CARD.piedText }}
+        >
           Développé par {BRAND.silycore.name}
         </p>
       </div>
     </div>
   );
 
-  /** Verso — QR central (licence cachée dedans) */
+  const activationSteps = [
+    <>Ouvrez l&apos;app <strong className="font-semibold" style={{ color: CARD.creme }}>{BRAND.name}</strong></>,
+    <>Menu → <strong className="font-semibold" style={{ color: CARD.creme }}>Activer ma carte</strong></>,
+    <>Scannez ce QR code</>,
+  ];
+
   const Verso = (
     <div
-      className={`${cardBaseClass} license-pvc-verso`}
-      style={{
-        width: "85.6mm",
-        height: "53.98mm",
-        backgroundColor: BRAND.colors.background,
-      }}
+      className={`${cardShell} license-pvc-verso flex flex-col`}
+      style={{ width: "85.6mm", height: "53.98mm", backgroundColor: CARD.brunFonce }}
     >
-      <div className="absolute top-[3mm] left-0 right-0 h-[6mm] bg-[#1a1a1a]" aria-hidden="true" />
-
-      <div className="relative z-10 flex h-full flex-col items-center justify-center pt-[8mm] pb-[7mm] px-[4mm]">
-        <p className="text-[2mm] font-bold mb-[2mm]" style={{ color: BRAND.colors.brown }}>
+      <div className="py-[2mm] text-center" style={{ backgroundColor: CARD.bandeau }}>
+        <p className="text-[2.4mm] font-semibold" style={{ color: CARD.orClair }}>
           Activez votre licence
         </p>
-
-        <div
-          className="rounded-[2mm] border-2 bg-white p-[1.5mm]"
-          style={{ borderColor: BRAND.colors.gold }}
-        >
-          {qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={qrDataUrl} alt="QR activation licence" className="w-[22mm] h-[22mm]" />
-          ) : (
-            <div className="w-[22mm] h-[22mm] bg-gray-100" />
-          )}
-        </div>
-
-        <ol className="mt-[2.5mm] text-center space-y-[0.5mm] text-[1.7mm] leading-snug" style={{ color: BRAND.colors.grayDark }}>
-          <li>1. Ouvrez l&apos;app <strong>Balandou Wourouki</strong></li>
-          <li>2. Menu → <strong>Activer ma carte</strong></li>
-          <li>3. Scannez ce QR code</li>
-        </ol>
-
-          <p className="mt-[2mm] text-[1.4mm] text-center" style={{ color: BRAND.colors.gray }}>
-            Support : {BRAND.contact.phoneDisplay} · {BRAND.contact.email}
-          </p>
-          <p className="mt-[1mm] text-[1.2mm] text-center leading-tight" style={{ color: BRAND.colors.grayDark }}>
-            {BRAND.silycore.tagline} · {BRAND.silycore.name} · {BRAND.silycore.phoneDisplay}
-          </p>
       </div>
 
-      <div
-        className="absolute bottom-0 left-0 right-0 h-[5mm] flex items-center justify-center"
-        style={{ backgroundColor: BRAND.colors.brown }}
-      >
-        <p className="text-[1.4mm] font-semibold text-white tracking-wide">
+      <div className="flex flex-1 items-center gap-[3.5mm] px-[4.5mm] py-[2.5mm]">
+        <QrBox src={qrDataUrl} size="19mm" />
+        <ol className="m-0 flex list-none flex-col gap-[1.3mm] p-0">
+          {activationSteps.map((step, index) => (
+            <li
+              key={index}
+              className="flex gap-[1.5mm] text-[2.1mm] leading-snug"
+              style={{ color: "#e3d7c0" }}
+            >
+              <span
+                className="flex h-[3.2mm] w-[3.2mm] shrink-0 items-center justify-center rounded-full text-[1.8mm] font-bold"
+                style={{ backgroundColor: CARD.or, color: CARD.brunFonce }}
+              >
+                {index + 1}
+              </span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-x-[4mm] gap-y-[0.5mm] px-[4.5mm] pb-[1mm]">
+        <span className="flex items-center gap-[1mm] text-[1.8mm]" style={{ color: CARD.cremeMat }}>
+          <Phone className="h-[2.2mm] w-[2.2mm]" style={{ color: CARD.or }} aria-hidden />
+          {BRAND.contact.phoneDisplay}
+        </span>
+        <span className="flex items-center gap-[1mm] text-[1.8mm]" style={{ color: CARD.cremeMat }}>
+          <Mail className="h-[2.2mm] w-[2.2mm]" style={{ color: CARD.or }} aria-hidden />
+          {BRAND.contact.email}
+        </span>
+      </div>
+
+      <div className="py-[1.5mm] text-center" style={{ backgroundColor: CARD.bandeau }}>
+        <p className="text-[1.6mm] tracking-[0.2mm]" style={{ color: CARD.piedText }}>
           {BRAND.tagline} · Développé par {BRAND.silycore.name}
         </p>
       </div>
@@ -167,13 +219,17 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
   if (side === "verso") return <div className={className}>{Verso}</div>;
 
   return (
-    <div className={`flex flex-col sm:flex-row gap-6 items-start ${className}`}>
+    <div className={`flex flex-col flex-wrap items-start gap-[30px] sm:flex-row ${className}`}>
       <div>
-        <p className="text-xs font-medium mb-2" style={{ color: "var(--brand-gray)" }}>Recto (face avant — sans code)</p>
+        <p className="mb-2 text-xs font-medium" style={{ color: "var(--brand-gray)" }}>
+          Recto — marque + téléchargement app
+        </p>
         {Recto}
       </div>
       <div>
-        <p className="text-xs font-medium mb-2" style={{ color: "var(--brand-gray)" }}>Verso (QR licence — scan uniquement)</p>
+        <p className="mb-2 text-xs font-medium" style={{ color: "var(--brand-gray)" }}>
+          Verso — QR activation licence
+        </p>
         {Verso}
       </div>
     </div>

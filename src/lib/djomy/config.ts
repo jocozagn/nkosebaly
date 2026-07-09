@@ -12,7 +12,11 @@ export const getDjomyConfig = (): DjomyConfig => {
   const clientId = process.env.DJOMY_CLIENT_ID;
   const clientSecret = process.env.DJOMY_CLIENT_SECRET;
   const partnerDomain = process.env.DJOMY_PARTNER_DOMAIN;
-  const baseUrl = process.env.DJOMY_BASE_URL ?? "https://sandbox-api.djomy.africa";
+  const baseUrl =
+    process.env.DJOMY_BASE_URL ??
+    (process.env.NODE_ENV === "production"
+      ? "https://api.djomy.africa"
+      : "https://sandbox-api.djomy.africa");
   const webUrl = (process.env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001").replace(/\/$/, "");
 
   if (!clientId || !clientSecret || !partnerDomain) {

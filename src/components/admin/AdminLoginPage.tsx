@@ -20,26 +20,37 @@ const AdminLoginPage = () => {
     setError("");
     setIsLoading(true);
 
-    const response = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    const result = await response.json();
-    setIsLoading(false);
+      let result: { error?: boolean; message?: string } = {};
+      try {
+        result = (await response.json()) as { error?: boolean; message?: string };
+      } catch {
+        throw new Error(`Réponse serveur invalide (HTTP ${response.status})`);
+      }
 
-    if (result.error) {
-      setError(result.message ?? "Erreur de connexion");
-      return;
+      if (!response.ok || result.error) {
+        setError(result.message ?? `Erreur de connexion (HTTP ${response.status})`);
+        return;
+      }
+
+      // Rechargement complet pour que le serveur lise le cookie admin_token
+      window.location.assign("/admin/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Connexion impossible. Vérifiez votre réseau.");
+    } finally {
+      setIsLoading(false);
     }
-
-    router.replace("/admin/dashboard");
   };
 
   const handleQuickLogin = (): void => {
-    setEmail("admin@balandou.local");
-    setPassword("admin123");
+    setEmail("adminko@balandou.local");
+    setPassword("Satina2019");
   };
 
   return (
@@ -90,7 +101,7 @@ const AdminLoginPage = () => {
                 required
                 autoComplete="username"
                 className="w-full px-4 py-2.5 border border-[#e8ddd4] rounded focus:outline-none focus:ring-2 focus:ring-[var(--brand-brown)]"
-                placeholder="admin@balandou.local"
+                placeholder="Adresse email"
               />
             </div>
 
@@ -136,7 +147,7 @@ const AdminLoginPage = () => {
               className="mt-4 w-full text-center text-xs underline"
               style={{ color: "var(--brand-sky-dark)" }}
             >
-              Connexion rapide (test) : admin@balandou.local / admin123
+              Connexion rapide (test) : adminko@balandou.local
             </button>
           )}
         </div>

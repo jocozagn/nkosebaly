@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminRequest } from "@/lib/admin/auth";
 import {
   getLessonQuestions,
   getLessonQuestionsByCourse,
   replyToLessonQuestion,
 } from "@/lib/admin/store";
 
-const isAdmin = (req: NextRequest): boolean => Boolean(req.cookies.get("admin_token")?.value);
-
 /** Liste ou réponse aux questions des élèves (admin) */
 export const GET = async (req: NextRequest): Promise<NextResponse> => {
-  if (!isAdmin(req)) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 
@@ -27,7 +26,7 @@ export const GET = async (req: NextRequest): Promise<NextResponse> => {
 };
 
 export const PATCH = async (req: NextRequest): Promise<NextResponse> => {
-  if (!isAdmin(req)) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 

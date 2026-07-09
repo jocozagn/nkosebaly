@@ -11,15 +11,24 @@ export const getAuthToken = (req: NextRequest): string | null =>
 export const getDeviceId = (req: NextRequest): string | null =>
   req.cookies.get(DEVICE_COOKIE)?.value ?? null;
 
+interface CookieOpts {
+  secure: boolean;
+  sameSite: "lax" | "strict";
+}
+
 export const setLicenseCookies = (
   response: NextResponse,
   deviceId: string,
-  licenseCardId: string
+  licenseCardId: string,
+  options?: CookieOpts
 ): void => {
+  const secure = options?.secure ?? process.env.NODE_ENV === "production";
+  const sameSite = options?.sameSite ?? "strict";
+
   const cookieBase = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict" as const,
+    secure,
+    sameSite,
     path: "/",
     maxAge: 365 * 24 * 60 * 60,
   };
@@ -28,11 +37,14 @@ export const setLicenseCookies = (
   response.cookies.set(LICENSE_COOKIE, licenseCardId, cookieBase);
 };
 
-export const setProfileCompleteCookie = (response: NextResponse): void => {
+export const setProfileCompleteCookie = (response: NextResponse, options?: CookieOpts): void => {
+  const secure = options?.secure ?? process.env.NODE_ENV === "production";
+  const sameSite = options?.sameSite ?? "strict";
+
   response.cookies.set(PROFILE_COOKIE, "1", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict" as const,
+    secure,
+    sameSite,
     path: "/",
     maxAge: 365 * 24 * 60 * 60,
   });

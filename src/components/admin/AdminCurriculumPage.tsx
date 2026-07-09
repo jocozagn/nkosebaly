@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Video, CheckCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Video, CheckCircle, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import BrandLoader from "@/components/ui/BrandLoader";
 import VideoUploadField from "@/components/admin/VideoUploadField";
 import LessonAttachmentField from "@/components/admin/LessonAttachmentField";
 import LessonQuestionsField from "@/components/admin/LessonQuestionsField";
+import LessonQuizField from "@/components/admin/LessonQuizField";
+import LessonEditForm from "@/components/admin/LessonEditForm";
 import { formatDurationMinutes } from "@/utils/videoDuration";
-import type { AdminChapter, AdminCourse, AdminLesson, AdminLessonAttachment, AdminLessonQuestion } from "@/lib/admin/types";
+import type { AdminChapter, AdminCourse, AdminLesson, AdminLessonAttachment, AdminLessonQuestion, AdminLessonQuizItem } from "@/lib/admin/types";
 
 interface AdminCurriculumPageProps {
   courseId: string;
@@ -22,6 +24,7 @@ const AdminCurriculumPage = ({ courseId }: AdminCurriculumPageProps) => {
   const [lessons, setLessons] = useState<AdminLesson[]>([]);
   const [attachmentsByLesson, setAttachmentsByLesson] = useState<Record<string, AdminLessonAttachment[]>>({});
   const [questionsByLesson, setQuestionsByLesson] = useState<Record<string, AdminLessonQuestion[]>>({});
+  const [quizItemsByLesson, setQuizItemsByLesson] = useState<Record<string, AdminLessonQuizItem[]>>({});
   const [loadError, setLoadError] = useState("");
   const [chapterTitle, setChapterTitle] = useState("");
   const [lessonForm, setLessonForm] = useState({ chapter_id: "", title: "", duration_minutes: 0 });
@@ -29,6 +32,7 @@ const AdminCurriculumPage = ({ courseId }: AdminCurriculumPageProps) => {
   const [hasVideo, setHasVideo] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
 
   const loadData = async (): Promise<void> => {
     setIsLoading(true);
@@ -51,6 +55,7 @@ const AdminCurriculumPage = ({ courseId }: AdminCurriculumPageProps) => {
       setLessons(bundle.lessons ?? []);
       setAttachmentsByLesson(bundle.attachmentsByLesson ?? {});
       setQuestionsByLesson(bundle.questionsByLesson ?? {});
+      setQuizItemsByLesson(bundle.quizItemsByLesson ?? {});
     } catch {
       setLoadError("Connexion au serveur impossible. Vérifiez que l'application tourne puis réessayez.");
       toast.error("Échec du chargement du curriculum");
@@ -189,7 +194,7 @@ const AdminCurriculumPage = ({ courseId }: AdminCurriculumPageProps) => {
               <div className="p-4 space-y-2">
                 {lessons.filter((l) => l.chapter_id === chapter.id).map((lesson) => (
                   <div key={lesson.id} className="py-2 px-3 rounded border border-[#f0e8df] text-sm">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <Video className="w-4 h-4 flex-shrink-0" style={{ color: "var(--brand-sky)" }} />
                         <span className="truncate" style={{ color: "var(--brand-black)" }}>{lesson.title}</span>
@@ -198,10 +203,34 @@ const AdminCurriculumPage = ({ courseId }: AdminCurriculumPageProps) => {
                           <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0" aria-label="Vidéo hébergée" />
                         )}
                       </div>
-                      <button type="button" onClick={() => handleDeleteLesson(lesson.id)} className="p-1 rounded hover:bg-red-50" aria-label="Supprimer leçon">
-                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                      </button>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setEditingLessonId(lesson.id)}
+                          className="p-1 rounded hover:bg-[var(--brand-bg)]"
+                          aria-label="Modifier la leçon"
+                          title="Modifier la leçon"
+                        >
+                          <Pencil className="w-3.5 h-3.5" style={{ color: "var(--brand-brown)" }} />
+                        </button>
+                        <button type="button" onClick={() => handleDeleteLesson(lesson.id)} className="p-1 rounded hover:bg-red-50" aria-label="Supprimer leçon">
+                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        </button>
+                      </div>
                     </div>
+
+                    {editingLessonId === lesson.id && (
+                      <LessonEditForm
+                        lesson={lesson}
+                        chapters={chapters}
+                        onCancel={() => setEditingLessonId(null)}
+                        onSaved={() => {
+                          setEditingLessonId(null);
+                          loadData();
+                        }}
+                      />
+                    )}
+
                     <LessonAttachmentField
                       lessonId={lesson.id}
                       courseId={courseId}
@@ -213,6 +242,13 @@ const AdminCurriculumPage = ({ courseId }: AdminCurriculumPageProps) => {
                       lessonId={lesson.id}
                       lessonTitle={lesson.title}
                       questions={questionsByLesson[lesson.id] ?? []}
+                      onChanged={loadData}
+                    />
+                    <LessonQuizField
+                      lessonId={lesson.id}
+                      courseId={courseId}
+                      lessonTitle={lesson.title}
+                      items={quizItemsByLesson[lesson.id] ?? []}
                       onChanged={loadData}
                     />
                   </div>

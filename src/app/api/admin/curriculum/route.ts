@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminRequest } from "@/lib/admin/auth";
 import { getCurriculumBundle } from "@/lib/admin/store";
-
-const isAdmin = (req: NextRequest): boolean => Boolean(req.cookies.get("admin_token")?.value);
 
 /** Curriculum complet en une requête (cours, chapitres, leçons, pièces jointes, questions) */
 export const GET = async (req: NextRequest): Promise<NextResponse> => {
-  if (!isAdmin(req)) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 

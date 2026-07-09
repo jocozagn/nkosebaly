@@ -4,6 +4,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Empêche le défilement horizontal sur mobile */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 
 :root {
   /* Palette Balandou Wourouki Digital */

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { cn } from "@/lib/utils"
+import { BRAND } from "@/constants/brand"
 
 interface MainLoaderProps {
   className?: string;
@@ -289,7 +290,7 @@ const MainLoader = ({ className }: MainLoaderProps) => {
 
         {/* Logo text */}
         <div className="text-3xl font-bold loaderColor mt-4">
-          {process.env.NEXT_PUBLIC_WEB_NAME || 'eLMS'}
+          {process.env.NEXT_PUBLIC_WEB_NAME || BRAND.name}
         </div>
       </div>
     </div>

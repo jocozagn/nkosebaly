@@ -10,6 +10,7 @@ import CustomImageTag from "@/components/commonComp/customImage/CustomImageTag";
 import { useSelector } from 'react-redux';
 import { settingsSelector } from '@/redux/reducers/settingsSlice';
 import { currentLanguageSelector, isRTLSelector } from '@/redux/reducers/languageSlice';
+import { BRAND } from '@/constants/brand';
 
 const Testimonials: React.FC = () => {
 
@@ -18,7 +19,7 @@ const Testimonials: React.FC = () => {
   const settings = useSelector(settingsSelector);
   const currentLanguageCode = useSelector(currentLanguageSelector);
   const isRTL = useSelector(isRTLSelector);
-  const companyName = settings?.data?.app_name || process.env.NEXT_PUBLIC_WEB_NAME || 'eLMS';
+  const companyName = settings?.data?.app_name || process.env.NEXT_PUBLIC_WEB_NAME || BRAND.name;
 
   const { t } = useTranslation();
 

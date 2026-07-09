@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateLessonProgress } from "@/lib/admin/store";
+import { recordLessonOpenByAuthToken, updateLessonProgress } from "@/lib/admin/store";
 import { requireActiveLicense } from "@/lib/license/require-license";
 
 /** Enregistre la progression de visionnage d'une leçon */
@@ -11,8 +11,27 @@ export const POST = async (
   if (!licenseCheck.ok) return licenseCheck.response;
 
   const { courseId, lessonId } = await params;
-  const body = (await req.json().catch(() => ({}))) as { watch_percent?: number };
+  const body = (await req.json().catch(() => ({}))) as {
+    watch_percent?: number;
+    seconds_watched?: number;
+    client_timestamp?: string;
+    event_type?: "heartbeat" | "lesson_open";
+  };
   const watchPercent = Number(body.watch_percent ?? 0);
+  const eventType = body.event_type === "lesson_open" ? "lesson_open" : "heartbeat";
+
+  if (eventType === "lesson_open") {
+    const ok = await recordLessonOpenByAuthToken(
+      licenseCheck.authToken,
+      courseId,
+      lessonId,
+      body.client_timestamp
+    );
+    if (!ok) {
+      return NextResponse.json({ error: true, message: "Impossible d'enregistrer" }, { status: 400 });
+    }
+    return NextResponse.json({ error: false, data: { recorded: true } });
+  }
 
   if (Number.isNaN(watchPercent) || watchPercent < 0 || watchPercent > 100) {
     return NextResponse.json({ error: true, message: "Pourcentage invalide" }, { status: 400 });
@@ -22,7 +41,13 @@ export const POST = async (
     licenseCheck.authToken,
     courseId,
     lessonId,
-    watchPercent
+    watchPercent,
+    {
+      seconds_watched: Number(body.seconds_watched ?? 0),
+      event_type: "heartbeat",
+      source: "web",
+      client_timestamp: body.client_timestamp,
+    }
   );
 
   if (!result) {

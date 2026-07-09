@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminRequest } from "@/lib/admin/auth";
 import {
   deleteLessonAttachment,
   getLessonAttachments,
@@ -6,11 +7,9 @@ import {
 } from "@/lib/admin/store";
 import { saveAttachmentFile } from "@/lib/attachments/storage";
 
-const isAdmin = (req: NextRequest): boolean => Boolean(req.cookies.get("admin_token")?.value);
-
 /** Liste ou upload de pièces jointes (admin) */
 export const GET = async (req: NextRequest): Promise<NextResponse> => {
-  if (!isAdmin(req)) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 
@@ -24,7 +23,7 @@ export const GET = async (req: NextRequest): Promise<NextResponse> => {
 };
 
 export const POST = async (req: NextRequest): Promise<NextResponse> => {
-  if (!isAdmin(req)) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 
@@ -60,7 +59,7 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
 };
 
 export const DELETE = async (req: NextRequest): Promise<NextResponse> => {
-  if (!isAdmin(req)) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 

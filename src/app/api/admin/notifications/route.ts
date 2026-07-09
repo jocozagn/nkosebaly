@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminRequest } from "@/lib/admin/auth";
 import {
   getAdminNotifications,
   getUnreadNotificationCount,
@@ -6,12 +7,9 @@ import {
   markNotificationRead,
 } from "@/lib/admin/store";
 
-const isAdmin = (request: NextRequest): boolean =>
-  Boolean(request.cookies.get("admin_token")?.value);
-
 /** Liste des notifications admin */
 export const GET = async (request: NextRequest): Promise<NextResponse> => {
-  if (!isAdmin(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 
@@ -30,7 +28,7 @@ export const GET = async (request: NextRequest): Promise<NextResponse> => {
 
 /** Marquer une ou toutes les notifications comme lues */
 export const PATCH = async (request: NextRequest): Promise<NextResponse> => {
-  if (!isAdmin(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: true, message: "Non autorisé" }, { status: 401 });
   }
 
