@@ -73,6 +73,13 @@ Enregistrer le webhook chez Djomy : `POST https://silycor.xyz/api/webhooks/djomy
 4. **Certificat** — Paiement Djomy (web + mobile)
 5. **Connexion web** — QR depuis l'app mobile
 
+## Structure du dépôt
+
+| Dossier | Projet |
+|---------|--------|
+| `/` | Web + admin Next.js |
+| `/mobile` | App Flutter Android / iOS |
+
 ## Package manager
 
 Utiliser **bun** ou **npm** selon l'environnement local.

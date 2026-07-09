@@ -1,0 +1,48 @@
+name: nkosebaly
+description: Balandou Wourouki Digital — mobile SILYCORE (com.silycore.nkosebaly)
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  android_id: ^0.4.0
+  dio: ^5.9.2
+  encrypt: ^5.0.3
+  flutter_secure_storage: ^9.2.4
+  get: ^4.7.2
+  hive_flutter: ^1.1.0
+  mobile_scanner: ^7.0.1
+  path_provider: ^2.1.5
+  open_filex: ^4.7.0
+  url_launcher: ^6.3.1
+  uuid: ^4.5.1
+  video_player: ^2.10.0
+  wakelock_plus: ^1.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# Icône launcher Android + iOS — logo officiel Karamoo Sêebaly
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icon/app_icon.png
+  adaptive_icon_background: "#7D4E2D"
+  adaptive_icon_foreground: assets/icon/app_icon.png
+  min_sdk_android: 24
+  remove_alpha_ios: true
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/logo-balandou.png
+    - assets/icon/app_icon.png

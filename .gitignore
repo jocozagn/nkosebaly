@@ -54,3 +54,10 @@ next-env.d.ts
 # APK release (déployé manuellement sur le VPS)
 /public/apk/*.apk
 !/public/apk/.gitkeep
+
+# App Flutter mobile (sous-dossier mobile/)
+/mobile/build/
+/mobile/.dart_tool/
+/mobile/android/.gradle/
+/mobile/ios/Flutter/ephemeral/
+/mobile/**/*.apk
