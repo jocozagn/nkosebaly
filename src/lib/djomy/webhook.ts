@@ -24,3 +24,23 @@ export const extractCertificateIdFromWebhook = (
 
   return undefined;
 };
+
+/** Extraction license_order_id depuis payload webhook Djomy */
+export const extractLicenseOrderIdFromWebhook = (
+  payload: DjomyWebhookPayload
+): string | undefined => {
+  const fromRoot = payload.metadata?.license_order_id;
+  if (typeof fromRoot === "string") return fromRoot;
+
+  const fromData = payload.data?.metadata?.license_order_id;
+  if (typeof fromData === "string") return fromData;
+
+  const typeRoot = payload.metadata?.type;
+  const typeData = payload.data?.metadata?.type;
+  const isLicense = typeRoot === "license" || typeData === "license";
+
+  const merchantRef = payload.data?.merchantPaymentReference;
+  if (isLicense && typeof merchantRef === "string") return merchantRef;
+
+  return undefined;
+};

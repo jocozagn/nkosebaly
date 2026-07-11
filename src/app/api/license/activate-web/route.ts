@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  activateLicenseByCodeText,
   activateLicenseCard,
   linkStudentAuthSession,
   registerStudentProfile,
 } from "@/lib/admin/store";
 import { validateStudentProfile } from "@/lib/admin/profile";
+import type { AdminLicenseCard } from "@/lib/admin/types";
 import { parseLicenseQrPayload } from "@/lib/license/qr-payload";
 import {
   getAuthToken,
@@ -30,6 +32,7 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
 
   const body = await req.json().catch(() => ({}));
   const qrRaw = String(body?.qr_data ?? "").trim();
+  const licenseCode = String(body?.license_code ?? "").trim();
 
   const profileCheck = validateStudentProfile({
     name: body?.name,
@@ -43,22 +46,30 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
     return NextResponse.json({ error: true, message: profileCheck.message }, { status: 400 });
   }
 
-  if (!qrRaw) {
+  if (!qrRaw && !licenseCode) {
     return NextResponse.json(
-      { error: true, message: "Contenu du QR code requis" },
+      { error: true, message: "Code licence (NKO-XXXX-XXXX) ou contenu QR requis" },
       { status: 400 }
     );
   }
 
-  const parsed = parseLicenseQrPayload(qrRaw);
-  if (!parsed) {
-    return NextResponse.json(
-      { error: true, message: "QR code non reconnu. Scannez le verso de votre carte PVC." },
-      { status: 400 }
-    );
+  let result:
+    | { success: true; card: AdminLicenseCard }
+    | { success: false; message: string };
+
+  if (licenseCode) {
+    result = await activateLicenseByCodeText(licenseCode, deviceId);
+  } else {
+    const parsed = parseLicenseQrPayload(qrRaw);
+    if (!parsed) {
+      return NextResponse.json(
+        { error: true, message: "QR code non reconnu. Scannez le verso de votre carte PVC." },
+        { status: 400 }
+      );
+    }
+    result = await activateLicenseCard(parsed.id, parsed.token, deviceId);
   }
 
-  const result = await activateLicenseCard(parsed.id, parsed.token, deviceId);
   if (!result.success) {
     return NextResponse.json({ error: true, message: result.message }, { status: 403 });
   }

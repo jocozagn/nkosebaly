@@ -100,6 +100,39 @@ const AdminSettingsPage = () => {
           Approuver automatiquement les instructeurs
         </label>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#f0e8df]">
+          <div>
+            <label className="block text-sm font-medium mb-1">Prix licence en ligne (GNF)</label>
+            <input
+              type="number"
+              min={0}
+              value={settings.license_price}
+              onChange={(e) => setSettings({ ...settings, license_price: Number(e.target.value) })}
+              className="w-full px-4 py-2.5 border border-[#e8ddd4] rounded"
+            />
+            <p className="text-xs mt-1" style={{ color: "var(--brand-gray)" }}>
+              Pour les élèves sans carte PVC (paiement Djomy)
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Durée licence en ligne (mois)</label>
+            <select
+              value={settings.license_duration_months}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  license_duration_months: Number(e.target.value) as AdminSettings["license_duration_months"],
+                })
+              }
+              className="w-full px-4 py-2.5 border border-[#e8ddd4] rounded"
+            >
+              <option value={3}>3 mois</option>
+              <option value={6}>6 mois</option>
+              <option value={12}>12 mois</option>
+            </select>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-[#f0e8df]">
           <div>
             <label className="block text-sm font-medium mb-1">Prix certificat (GNF)</label>

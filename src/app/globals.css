@@ -509,6 +509,16 @@ textarea:focus {
   outline: none !important;
 }
 
+/* Ascenseur masqué — scroll tactile conservé (menu admin, drawers) */
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 .customScrollbar::-webkit-scrollbar {
   width: 4px;
   height: 6px;

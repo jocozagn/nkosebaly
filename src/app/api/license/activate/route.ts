@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { activateLicenseCard, createMobileAuthSession, registerStudentProfile } from "@/lib/admin/store";
+import { activateLicenseByCodeText, activateLicenseCard, createMobileAuthSession, registerStudentProfile } from "@/lib/admin/store";
 import { validateStudentProfile } from "@/lib/admin/profile";
 import { parseLicenseQrPayload } from "@/lib/license/qr-payload";
 
@@ -12,6 +12,7 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
 
   let cardId = body?.card_id as string | undefined;
   let token = body?.token as string | undefined;
+  const licenseCode = String(body?.license_code ?? "").trim();
   // On n'utilise plus device_id pour le mobile (on passe par un token).
   // On garde un fallback interne pour conserver la compatibilité des données user/progress existantes.
   const fallbackDeviceId = body?.device_id as string | undefined;
@@ -23,13 +24,6 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
     }
     cardId = parsed.id;
     token = parsed.token;
-  }
-
-  if (!cardId || !token) {
-    return NextResponse.json(
-      { error: true, message: "qr_data (ou card_id + token) et profil requis" },
-      { status: 400 }
-    );
   }
 
   const profileCheck = validateStudentProfile({
@@ -44,8 +38,20 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
     return NextResponse.json({ error: true, message: profileCheck.message }, { status: 400 });
   }
 
-  const deviceIdForData = fallbackDeviceId?.trim() || `card-${cardId}`;
-  const result = await activateLicenseCard(cardId, token, deviceIdForData);
+  const deviceIdForData = fallbackDeviceId?.trim() || (cardId ? `card-${cardId}` : crypto.randomUUID());
+
+  let result;
+  if (licenseCode) {
+    result = await activateLicenseByCodeText(licenseCode, deviceIdForData);
+  } else {
+    if (!cardId || !token) {
+      return NextResponse.json(
+        { error: true, message: "license_code, qr_data (ou card_id + token) et profil requis" },
+        { status: 400 }
+      );
+    }
+    result = await activateLicenseCard(cardId, token, deviceIdForData);
+  }
 
   if (!result.success) {
     return NextResponse.json({ error: true, message: result.message }, { status: 403 });

@@ -33,6 +33,8 @@ import type {
   StudentProfileInput,
   WatchActivityPayload,
   AdminAnalyticsSummary,
+  CardDurationMonths,
+  LicenseOrder,
 } from "./types";
 import {
   applyWatchActivityBatch,
@@ -51,6 +53,8 @@ const defaultSettings: AdminSettings = {
   contact_phone: "+224622873308",
   commission_rate: 10,
   instructor_auto_approve: false,
+  license_price: 150000,
+  license_duration_months: 3,
   certificate_price: 50000,
   quiz_pass_threshold: 15,
   quiz_max_attempts: 3,
@@ -79,6 +83,7 @@ const defaultData: AdminData = {
   users: [],
   certificates: [],
   notifications: [],
+  license_orders: [],
   settings: defaultSettings,
 };
 
@@ -116,6 +121,7 @@ const normalizeData = (raw: Partial<AdminData>): AdminData => ({
   users: raw.users ?? [],
   certificates: raw.certificates ?? [],
   notifications: raw.notifications ?? [],
+  license_orders: raw.license_orders ?? [],
   settings: { ...defaultSettings, ...raw.settings },
 });
 
@@ -1179,6 +1185,45 @@ export const activateLicenseCard = async (
   return { success: true, card };
 };
 
+/** Activation licence par code texte (NKO-XXXX-XXXX) — sans scan QR */
+export const activateLicenseByCodeText = async (
+  codeText: string,
+  deviceId: string
+): Promise<{ success: true; card: AdminLicenseCard } | { success: false; message: string }> => {
+  const { normalizeLicenseCodeText } = await import("@/lib/license/code-text");
+  const normalized = normalizeLicenseCodeText(codeText);
+  if (!normalized) {
+    return { success: false, message: "Code invalide. Format attendu : NKO-XXXX-XXXX" };
+  }
+
+  const data = await readAdminData();
+  const card = data.license_cards.find((c) => c.code_text.toUpperCase() === normalized);
+  if (!card) return { success: false, message: "Code licence introuvable" };
+  if (card.status === "disabled") return { success: false, message: "Cette licence a été désactivée" };
+  if (card.status === "expired") return { success: false, message: "Cette licence a expiré" };
+  if (card.status === "active") {
+    if (card.expires_at && new Date(card.expires_at) <= new Date()) {
+      card.status = "expired";
+      await writeAdminData(data);
+      return { success: false, message: "Cette licence a expiré" };
+    }
+    if (card.device_id === deviceId) return { success: true, card };
+    return { success: false, message: "Cette licence est déjà utilisée sur un autre appareil" };
+  }
+
+  const now = new Date();
+  const expires = new Date(now);
+  expires.setMonth(expires.getMonth() + card.duration_months);
+
+  card.status = "active";
+  card.device_id = deviceId;
+  card.activated_at = now.toISOString();
+  card.expires_at = expires.toISOString();
+
+  await writeAdminData(data);
+  return { success: true, card };
+};
+
 /** Vérifie qu'une carte licence donne encore accès */
 export const isLicenseCardValid = (card: AdminLicenseCard): boolean => {
   if (card.status !== "active") return false;
@@ -2195,4 +2240,137 @@ export const getLessonForPlayback = async (courseId: string, lessonId: string) =
     questions,
     reactions: { likes, dislikes },
   };
+};
+
+/** Prix public licence en ligne */
+export const getLicensePricing = async (): Promise<{
+  license_price: number;
+  license_duration_months: CardDurationMonths;
+  djomy_enabled: boolean;
+}> => {
+  const data = await readAdminData();
+  const { isDjomyConfigured } = await import("@/lib/djomy/config");
+  return {
+    license_price: data.settings.license_price ?? defaultSettings.license_price,
+    license_duration_months: data.settings.license_duration_months ?? defaultSettings.license_duration_months,
+    djomy_enabled: isDjomyConfigured(),
+  };
+};
+
+/** Initie l'achat licence en ligne (Djomy) */
+export const initiateLicensePurchase = async (
+  authToken: string,
+  deviceId: string,
+  profile: StudentProfileInput
+): Promise<{ paymentUrl: string; orderId: string } | { error: string }> => {
+  const { isDjomyConfigured } = await import("@/lib/djomy/config");
+  if (!isDjomyConfigured()) {
+    return { error: "Paiement en ligne non configuré. Contactez l'administrateur." };
+  }
+
+  const existing = await getStudentLicenseByAuthToken(authToken);
+  if (existing) return { error: "Vous avez déjà une licence active" };
+
+  const data = await readAdminData();
+  const amount = data.settings.license_price;
+  const duration = data.settings.license_duration_months ?? 3;
+  if (!amount || amount <= 0) return { error: "Prix licence non configuré dans l'admin" };
+
+  const orderId = crypto.randomUUID();
+  const order: LicenseOrder = {
+    id: orderId,
+    auth_token: authToken,
+    device_id: deviceId,
+    profile_snapshot: profile,
+    amount_gnf: amount,
+    duration_months: duration as CardDurationMonths,
+    payment_status: "pending" as const,
+    created_at: new Date().toISOString(),
+  };
+  data.license_orders.push(order);
+
+  const { createDjomyPaymentLink } = await import("@/lib/djomy/client");
+  const { getDjomyConfig } = await import("@/lib/djomy/config");
+  const djomyConfig = getDjomyConfig();
+
+  try {
+    const link = await createDjomyPaymentLink({
+      countryCode: "GN",
+      amountToPay: amount,
+      linkName: `Licence Karamoo Sêebaly — ${duration} mois`,
+      description: `Accès plateforme N'ko — ${duration} mois`,
+      merchantReference: orderId,
+      returnUrl: `${djomyConfig.webUrl}/dashboard/activate-license/payment/return?order_id=${orderId}`,
+      cancelUrl: `${djomyConfig.webUrl}/dashboard/activate-license/payment/cancel?order_id=${orderId}`,
+      metadata: {
+        license_order_id: orderId,
+        type: "license",
+      },
+    });
+
+    order.djomy_link_reference = link.paymentLinkReference;
+    pushAdminNotification(data, {
+      type: "license_activated",
+      title: "Achat licence en ligne",
+      message: `${profile.name} a lancé un paiement licence (${amount} GNF)`,
+      link: "/admin/cards",
+      metadata: { license_order_id: orderId },
+    });
+    await writeAdminData(data);
+
+    return { paymentUrl: link.paymentPageUrl, orderId };
+  } catch (err) {
+    data.license_orders = data.license_orders.filter((o) => o.id !== orderId);
+    await writeAdminData(data);
+    const message = err instanceof Error ? err.message : "Erreur paiement Djomy";
+    return { error: message };
+  }
+};
+
+/** Confirme paiement licence et active automatiquement */
+export const fulfillLicensePayment = async (
+  orderId: string,
+  transactionId: string
+): Promise<{ success: true; cardId: string } | { success: false; message: string }> => {
+  const data = await readAdminData();
+  const order = data.license_orders.find((o) => o.id === orderId);
+  if (!order) return { success: false, message: "Commande introuvable" };
+  if (order.payment_status === "paid" && order.license_card_id) {
+    return { success: true, cardId: order.license_card_id };
+  }
+
+  const { verifyDjomyPayment } = await import("@/lib/djomy/client");
+  const payment = await verifyDjomyPayment(transactionId);
+  if (payment.status !== "SUCCESS") {
+    return { success: false, message: "Paiement non confirmé" };
+  }
+
+  const [card] = await generateLicenseCards(1, order.duration_months);
+  if (!card) return { success: false, message: "Impossible de créer la licence" };
+
+  const activation = await activateLicenseCard(card.id, card.activation_token, order.device_id);
+  if (!activation.success) return { success: false, message: activation.message };
+
+  await registerStudentProfile(order.device_id, activation.card.id, order.profile_snapshot);
+  await linkStudentAuthSession(order.auth_token, order.device_id, activation.card.id);
+
+  // Relecture après écritures intermédiaires pour mettre à jour la commande
+  const finalData = await readAdminData();
+  const finalOrder = finalData.license_orders.find((o) => o.id === orderId);
+  if (!finalOrder) return { success: false, message: "Commande introuvable" };
+
+  finalOrder.payment_status = "paid";
+  finalOrder.djomy_transaction_id = transactionId;
+  finalOrder.license_card_id = activation.card.id;
+
+  pushAdminNotification(finalData, {
+    type: "license_activated",
+    title: "Licence achetée en ligne",
+    message: `${order.profile_snapshot.name} — ${activation.card.code_text}`,
+    link: "/admin/cards",
+    metadata: { license_card_id: activation.card.id, license_order_id: orderId },
+  });
+
+  await writeAdminData(finalData);
+  return { success: true, cardId: activation.card.id };
 };

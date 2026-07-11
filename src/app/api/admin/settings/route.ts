@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin/auth";
 import { getSettings, saveSettings } from "@/lib/admin/store";
+import type { AdminSettings } from "@/lib/admin/types";
 
 export const GET = async (request: NextRequest): Promise<NextResponse> => {
   if (!isAdminRequest(request)) {
@@ -25,6 +26,8 @@ export const PUT = async (request: NextRequest): Promise<NextResponse> => {
     contact_phone: body?.contact_phone ?? current.contact_phone,
     commission_rate: Number(body?.commission_rate ?? current.commission_rate),
     instructor_auto_approve: Boolean(body?.instructor_auto_approve ?? current.instructor_auto_approve),
+    license_price: Number(body?.license_price ?? current.license_price),
+    license_duration_months: Number(body?.license_duration_months ?? current.license_duration_months) as AdminSettings["license_duration_months"],
     certificate_price: Number(body?.certificate_price ?? current.certificate_price),
     quiz_pass_threshold: Number(body?.quiz_pass_threshold ?? current.quiz_pass_threshold),
     quiz_max_attempts: Number(body?.quiz_max_attempts ?? current.quiz_max_attempts),

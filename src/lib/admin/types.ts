@@ -376,9 +376,34 @@ export interface AdminSettings {
   contact_phone: string;
   commission_rate: number;
   instructor_auto_approve: boolean;
+  /** Prix licence en ligne (GNF) — achat sans carte PVC */
+  license_price: number;
+  /** Durée licence achetée en ligne (mois) */
+  license_duration_months: CardDurationMonths;
   certificate_price: number;
   quiz_pass_threshold: number;
   quiz_max_attempts: number;
+}
+
+/** Commande licence payée en ligne (Djomy) */
+export interface LicenseOrder {
+  id: string;
+  auth_token: string;
+  device_id: string;
+  profile_snapshot: {
+    name: string;
+    phone: string;
+    email?: string;
+    city?: string;
+    occupation?: string;
+  };
+  amount_gnf: number;
+  duration_months: CardDurationMonths;
+  payment_status: PaymentStatus;
+  djomy_link_reference?: string;
+  djomy_transaction_id?: string;
+  license_card_id?: string;
+  created_at: string;
 }
 
 export interface AdminData {
@@ -402,5 +427,6 @@ export interface AdminData {
   users: AdminUser[];
   certificates: AdminCertificate[];
   notifications: AdminNotification[];
+  license_orders: LicenseOrder[];
   settings: AdminSettings;
 }
