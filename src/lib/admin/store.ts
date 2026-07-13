@@ -2285,6 +2285,7 @@ export const initiateLicensePurchase = async (
     amount_gnf: amount,
     duration_months: duration as CardDurationMonths,
     payment_status: "pending" as const,
+    source: "web",
     created_at: new Date().toISOString(),
   };
   data.license_orders.push(order);
@@ -2327,6 +2328,78 @@ export const initiateLicensePurchase = async (
   }
 };
 
+/** Initie l'achat licence en ligne depuis l'app mobile (Djomy) */
+export const initiateLicensePurchaseByDeviceId = async (
+  deviceId: string,
+  profile: StudentProfileInput
+): Promise<{ paymentUrl: string; orderId: string } | { error: string }> => {
+  const { isDjomyConfigured } = await import("@/lib/djomy/config");
+  if (!isDjomyConfigured()) {
+    return { error: "Paiement en ligne non configuré. Contactez l'administrateur." };
+  }
+
+  const existing = await getActiveLicenseByDeviceId(deviceId);
+  if (existing) return { error: "Vous avez déjà une licence active" };
+
+  const data = await readAdminData();
+  const amount = data.settings.license_price;
+  const duration = data.settings.license_duration_months ?? 3;
+  if (!amount || amount <= 0) return { error: "Prix licence non configuré dans l'admin" };
+
+  const orderId = crypto.randomUUID();
+  const order: LicenseOrder = {
+    id: orderId,
+    auth_token: `mobile:${deviceId}`,
+    device_id: deviceId,
+    profile_snapshot: profile,
+    amount_gnf: amount,
+    duration_months: duration as CardDurationMonths,
+    payment_status: "pending",
+    source: "mobile",
+    created_at: new Date().toISOString(),
+  };
+  data.license_orders.push(order);
+
+  const { createDjomyPaymentLink } = await import("@/lib/djomy/client");
+  const { getDjomyConfig } = await import("@/lib/djomy/config");
+  const djomyConfig = getDjomyConfig();
+
+  try {
+    const link = await createDjomyPaymentLink({
+      countryCode: "GN",
+      amountToPay: amount,
+      linkName: `Licence Karamoo Sêebaly — ${duration} mois`,
+      description: `Accès plateforme N'ko (mobile) — ${duration} mois`,
+      merchantReference: orderId,
+      returnUrl: `${djomyConfig.webUrl}/dashboard/activate-license/payment/return?order_id=${orderId}&source=mobile`,
+      cancelUrl: `${djomyConfig.webUrl}/dashboard/activate-license/payment/cancel?order_id=${orderId}&source=mobile`,
+      metadata: {
+        license_order_id: orderId,
+        type: "license",
+        source: "mobile",
+        device_id: deviceId,
+      },
+    });
+
+    order.djomy_link_reference = link.paymentLinkReference;
+    pushAdminNotification(data, {
+      type: "license_activated",
+      title: "Achat licence mobile",
+      message: `${profile.name} a lancé un paiement licence mobile (${amount} GNF)`,
+      link: "/admin/cards",
+      metadata: { license_order_id: orderId, source: "mobile" },
+    });
+    await writeAdminData(data);
+
+    return { paymentUrl: link.paymentPageUrl, orderId };
+  } catch (err) {
+    data.license_orders = data.license_orders.filter((o) => o.id !== orderId);
+    await writeAdminData(data);
+    const message = err instanceof Error ? err.message : "Erreur paiement Djomy";
+    return { error: message };
+  }
+};
+
 /** Confirme paiement licence et active automatiquement */
 export const fulfillLicensePayment = async (
   orderId: string,
@@ -2352,7 +2425,11 @@ export const fulfillLicensePayment = async (
   if (!activation.success) return { success: false, message: activation.message };
 
   await registerStudentProfile(order.device_id, activation.card.id, order.profile_snapshot);
-  await linkStudentAuthSession(order.auth_token, order.device_id, activation.card.id);
+
+  // Session web uniquement pour les achats navigateur
+  if (order.source !== "mobile" && order.auth_token && !order.auth_token.startsWith("mobile:")) {
+    await linkStudentAuthSession(order.auth_token, order.device_id, activation.card.id);
+  }
 
   // Relecture après écritures intermédiaires pour mettre à jour la commande
   const finalData = await readAdminData();

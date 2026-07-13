@@ -403,6 +403,8 @@ export interface LicenseOrder {
   djomy_link_reference?: string;
   djomy_transaction_id?: string;
   license_card_id?: string;
+  /** web | mobile — origine de la commande */
+  source?: "web" | "mobile";
   created_at: string;
 }
 
