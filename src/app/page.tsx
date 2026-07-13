@@ -1,5 +1,5 @@
 import { getStudentAuthSessionByToken } from "@/lib/admin/store";
-import { clearStudentWebCookies } from "@/lib/auth/student-web-session";
+import { STALE_SESSION_CLEAR_PATH } from "@/lib/auth/student-web-session";
 import { getAuthToken } from "@/utils/cookies";
 import { redirect } from "next/navigation";
 import QrLoginPage from "@/components/nko/QrLoginPage";
@@ -15,8 +15,8 @@ export default async function Home() {
     if (session) {
       redirect("/dashboard");
     }
-    // Cookie auth présent mais session révoquée (connexion sur un autre appareil)
-    await clearStudentWebCookies();
+    // Cookie auth présent mais session révoquée → effacement via Route Handler
+    redirect(STALE_SESSION_CLEAR_PATH);
   }
 
   return <QrLoginPage />;
