@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Award, ExternalLink, CheckCircle } from "lucide-react";
+import Link from "next/link";
+import { Award, ExternalLink, CheckCircle, Eye, Printer } from "lucide-react";
 import toast from "react-hot-toast";
 import type { AdminCertificate, AdminCourse, AdminUser } from "@/lib/admin/types";
 
@@ -47,6 +48,10 @@ const AdminCertificatesPage = () => {
     toast.success("Certificat émis");
     setForm({ user_id: "", course_id: "", force: false });
     loadData();
+
+    if (json.data?.id) {
+      window.open(`/admin/certificates/${json.data.id}/print`, "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleApprove = async (id: string): Promise<void> => {
@@ -60,6 +65,10 @@ const AdminCertificatesPage = () => {
 
     toast.success("Demande approuvée");
     loadData();
+
+    if (json.data?.id) {
+      window.open(`/admin/certificates/${json.data.id}/print`, "_blank", "noopener,noreferrer");
+    }
   };
 
   const getUserName = (id: string): string => users.find((u) => u.id === id)?.name ?? "—";
@@ -91,6 +100,7 @@ const AdminCertificatesPage = () => {
                   {cert.djomy_link_reference ? " · En attente de paiement Djomy" : " · Validation manuelle"}
                 </p>
               </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <button
                 type="button"
                 onClick={() => handleApprove(cert.id)}
@@ -99,6 +109,7 @@ const AdminCertificatesPage = () => {
                 <CheckCircle className="w-3.5 h-3.5" />
                 Approuver
               </button>
+              </div>
             </div>
           ))}
         </div>
@@ -159,7 +170,7 @@ const AdminCertificatesPage = () => {
                 <th className="px-4 py-3 font-medium">Étudiant</th>
                 <th className="px-4 py-3 font-medium">Cours</th>
                 <th className="px-4 py-3 font-medium">Émis le</th>
-                <th className="px-4 py-3 font-medium">Vérifier</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -172,15 +183,38 @@ const AdminCertificatesPage = () => {
                     {cert.issued_at ? new Date(cert.issued_at).toLocaleDateString("fr-FR") : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    <a
-                      href={`/verification/cert/${cert.verification_hash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs underline"
-                      style={{ color: "var(--brand-brown)" }}
-                    >
-                      Lien <ExternalLink className="w-3 h-3" />
-                    </a>
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                      <Link
+                        href={`/admin/certificates/${cert.id}/print`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-medium underline"
+                        style={{ color: "var(--brand-brown)" }}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Voir / PDF
+                      </Link>
+                      <Link
+                        href={`/admin/certificates/${cert.id}/print`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs underline"
+                        style={{ color: "var(--brand-gray-dark)" }}
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        Imprimer
+                      </Link>
+                      <a
+                        href={`/verification/cert/${cert.verification_hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs underline"
+                        style={{ color: "var(--brand-gray)" }}
+                      >
+                        Vérifier
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -54,3 +54,12 @@ export const clearLicenseCookies = (response: NextResponse): void => {
   response.cookies.set(LICENSE_COOKIE, "", { path: "/", maxAge: 0 });
   response.cookies.set(PROFILE_COOKIE, "", { path: "/", maxAge: 0 });
 };
+
+/** Efface toute la session web étudiante (réponse API) */
+export const clearStudentWebSessionCookies = (response: NextResponse): void => {
+  const clear = { path: "/", maxAge: 0 };
+  response.cookies.set("auth_token", "", clear);
+  response.cookies.set(DEVICE_COOKIE, "", clear);
+  response.cookies.set(LICENSE_COOKIE, "", clear);
+  response.cookies.set(PROFILE_COOKIE, "", clear);
+};

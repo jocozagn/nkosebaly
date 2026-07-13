@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin/auth";
 import { getSettings, saveSettings } from "@/lib/admin/store";
-import type { AdminSettings } from "@/lib/admin/types";
+import type { AdminSettings, LicensePlan } from "@/lib/admin/types";
+
+const parseLicensePlans = (raw: unknown): LicensePlan[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((item, index) => ({
+    id: String((item as LicensePlan)?.id ?? `plan-${index}`),
+    duration_months: Number((item as LicensePlan)?.duration_months) || 1,
+    price_gnf: Number((item as LicensePlan)?.price_gnf) || 0,
+    label: (item as LicensePlan)?.label?.trim() || undefined,
+    active: (item as LicensePlan)?.active !== false,
+  }));
+};
 
 export const GET = async (request: NextRequest): Promise<NextResponse> => {
   if (!isAdminRequest(request)) {
@@ -19,6 +30,7 @@ export const PUT = async (request: NextRequest): Promise<NextResponse> => {
 
   const body = await request.json().catch(() => null);
   const current = await getSettings();
+  const licensePlans = parseLicensePlans(body?.license_plans) ?? current.license_plans;
 
   const settings = await saveSettings({
     app_name: body?.app_name ?? current.app_name,
@@ -28,6 +40,7 @@ export const PUT = async (request: NextRequest): Promise<NextResponse> => {
     instructor_auto_approve: Boolean(body?.instructor_auto_approve ?? current.instructor_auto_approve),
     license_price: Number(body?.license_price ?? current.license_price),
     license_duration_months: Number(body?.license_duration_months ?? current.license_duration_months) as AdminSettings["license_duration_months"],
+    license_plans: licensePlans,
     certificate_price: Number(body?.certificate_price ?? current.certificate_price),
     quiz_pass_threshold: Number(body?.quiz_pass_threshold ?? current.quiz_pass_threshold),
     quiz_max_attempts: Number(body?.quiz_max_attempts ?? current.quiz_max_attempts),

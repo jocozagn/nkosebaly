@@ -74,6 +74,10 @@ export const buildMinimalAdminData = (): AdminData => ({
     contact_phone: "+224000000000",
     license_price: 150000,
     license_duration_months: 3,
+    license_plans: [
+      { id: "plan-1m", duration_months: 1, price_gnf: 50000, active: true },
+      { id: "plan-3m", duration_months: 3, price_gnf: 150000, active: true },
+    ],
     certificate_price: 50000,
     quiz_pass_threshold: 70,
     quiz_max_attempts: 3,

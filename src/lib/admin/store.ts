@@ -41,6 +41,14 @@ import {
   buildAnalyticsSummary,
   recordWatchActivityOnData,
 } from "./analytics";
+import {
+  DEFAULT_LICENSE_PLANS,
+  getActiveLicensePlans,
+  getDefaultLicensePlan,
+  isValidLicenseDurationMonths,
+  normalizeLicensePlans,
+  resolveLicensePlanByDuration,
+} from "@/lib/license/plans";
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin");
 const DATA_FILE = path.join(DATA_DIR, "store.json");
@@ -55,6 +63,7 @@ const defaultSettings: AdminSettings = {
   instructor_auto_approve: false,
   license_price: 150000,
   license_duration_months: 3,
+  license_plans: DEFAULT_LICENSE_PLANS,
   certificate_price: 50000,
   quiz_pass_threshold: 15,
   quiz_max_attempts: 3,
@@ -122,8 +131,18 @@ const normalizeData = (raw: Partial<AdminData>): AdminData => ({
   certificates: raw.certificates ?? [],
   notifications: raw.notifications ?? [],
   license_orders: raw.license_orders ?? [],
-  settings: { ...defaultSettings, ...raw.settings },
+  settings: normalizeAdminSettings({ ...defaultSettings, ...raw.settings }),
 });
+
+/** Paramètres admin — formules licence normalisées */
+export const normalizeAdminSettings = (partial: AdminSettings): AdminSettings => {
+  const merged = { ...defaultSettings, ...partial };
+  const hasPlans = Array.isArray(merged.license_plans) && merged.license_plans.length > 0;
+  return {
+    ...merged,
+    license_plans: hasPlans ? normalizeLicensePlans(merged) : DEFAULT_LICENSE_PLANS,
+  };
+};
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -1116,7 +1135,7 @@ export const revokeLicenseCardDevice = async (cardId: string): Promise<AdminLice
 
 export const generateLicenseCards = async (
   count: number,
-  durationMonths: 3 | 6 | 12,
+  durationMonths: CardDurationMonths,
   options?: {
     allowed_course_ids?: string[];
     card_price_gnf?: number;
@@ -1279,13 +1298,22 @@ export const getAllowedCourseIdsForCard = (card: AdminLicenseCard): string[] | n
   return card.allowed_course_ids;
 };
 
+/** Session web étudiante liée au cookie auth (sans vérifier la licence) */
+export const getStudentAuthSessionByToken = async (
+  authToken: string
+): Promise<StudentAuthSession | null> => {
+  const data = await readAdminData();
+  return data.student_auth_sessions.find((s) => s.auth_token === authToken) ?? null;
+};
+
 /** Récupère la licence active liée au cookie auth étudiant */
 export const getStudentLicenseByAuthToken = async (
   authToken: string
 ): Promise<{ card: AdminLicenseCard; session: StudentAuthSession } | null> => {
-  const data = await readAdminData();
-  const session = data.student_auth_sessions.find((s) => s.auth_token === authToken);
+  const session = await getStudentAuthSessionByToken(authToken);
   if (!session) return null;
+
+  const data = await readAdminData();
 
   const card = data.license_cards.find((c) => c.id === session.license_card_id);
   if (!card || !isLicenseCardValid(card)) return null;
@@ -2124,9 +2152,9 @@ export const getStudentCertificatesOverviewByDeviceId = async (deviceId: string)
 export const getSettings = async (): Promise<AdminSettings> => (await readAdminData()).settings;
 export const saveSettings = async (settings: AdminSettings): Promise<AdminSettings> => {
   const data = await readAdminData();
-  data.settings = settings;
+  data.settings = normalizeAdminSettings(settings);
   await writeAdminData(data);
-  return settings;
+  return data.settings;
 };
 
 /** Données publiques — sans URL vidéo directe (streaming protégé uniquement) */
@@ -2242,26 +2270,33 @@ export const getLessonForPlayback = async (courseId: string, lessonId: string) =
   };
 };
 
-/** Prix public licence en ligne */
+/** Prix public licence en ligne — plusieurs formules */
 export const getLicensePricing = async (): Promise<{
-  license_price: number;
-  license_duration_months: CardDurationMonths;
+  plans: ReturnType<typeof getActiveLicensePlans>;
   djomy_enabled: boolean;
+  /** @deprecated compatibilité mobile/web anciennes versions */
+  license_price: number;
+  license_duration_months: number;
 }> => {
   const data = await readAdminData();
   const { isDjomyConfigured } = await import("@/lib/djomy/config");
+  const plans = getActiveLicensePlans(data.settings);
+  const fallback = getDefaultLicensePlan(data.settings);
+
   return {
-    license_price: data.settings.license_price ?? defaultSettings.license_price,
-    license_duration_months: data.settings.license_duration_months ?? defaultSettings.license_duration_months,
+    plans,
     djomy_enabled: isDjomyConfigured(),
+    license_price: fallback?.price_gnf ?? data.settings.license_price,
+    license_duration_months: fallback?.duration_months ?? data.settings.license_duration_months,
   };
 };
 
-/** Initie l'achat licence en ligne (Djomy) */
+/** Initie l'achat licence en ligne (Djomy) — formule choisie par l'élève */
 export const initiateLicensePurchase = async (
   authToken: string,
   deviceId: string,
-  profile: StudentProfileInput
+  profile: StudentProfileInput,
+  durationMonths: number
 ): Promise<{ paymentUrl: string; orderId: string } | { error: string }> => {
   const { isDjomyConfigured } = await import("@/lib/djomy/config");
   if (!isDjomyConfigured()) {
@@ -2272,9 +2307,13 @@ export const initiateLicensePurchase = async (
   if (existing) return { error: "Vous avez déjà une licence active" };
 
   const data = await readAdminData();
-  const amount = data.settings.license_price;
-  const duration = data.settings.license_duration_months ?? 3;
-  if (!amount || amount <= 0) return { error: "Prix licence non configuré dans l'admin" };
+  const plan = resolveLicensePlanByDuration(data.settings, durationMonths);
+  if (!plan) {
+    return { error: "Formule licence invalide ou indisponible" };
+  }
+
+  const amount = plan.price_gnf;
+  const duration = plan.duration_months;
 
   const orderId = crypto.randomUUID();
   const order: LicenseOrder = {
@@ -2283,7 +2322,7 @@ export const initiateLicensePurchase = async (
     device_id: deviceId,
     profile_snapshot: profile,
     amount_gnf: amount,
-    duration_months: duration as CardDurationMonths,
+    duration_months: duration,
     payment_status: "pending" as const,
     source: "web",
     created_at: new Date().toISOString(),
@@ -2331,7 +2370,8 @@ export const initiateLicensePurchase = async (
 /** Initie l'achat licence en ligne depuis l'app mobile (Djomy) */
 export const initiateLicensePurchaseByDeviceId = async (
   deviceId: string,
-  profile: StudentProfileInput
+  profile: StudentProfileInput,
+  durationMonths: number
 ): Promise<{ paymentUrl: string; orderId: string } | { error: string }> => {
   const { isDjomyConfigured } = await import("@/lib/djomy/config");
   if (!isDjomyConfigured()) {
@@ -2342,9 +2382,13 @@ export const initiateLicensePurchaseByDeviceId = async (
   if (existing) return { error: "Vous avez déjà une licence active" };
 
   const data = await readAdminData();
-  const amount = data.settings.license_price;
-  const duration = data.settings.license_duration_months ?? 3;
-  if (!amount || amount <= 0) return { error: "Prix licence non configuré dans l'admin" };
+  const plan = resolveLicensePlanByDuration(data.settings, durationMonths);
+  if (!plan) {
+    return { error: "Formule licence invalide ou indisponible" };
+  }
+
+  const amount = plan.price_gnf;
+  const duration = plan.duration_months;
 
   const orderId = crypto.randomUUID();
   const order: LicenseOrder = {
@@ -2353,7 +2397,7 @@ export const initiateLicensePurchaseByDeviceId = async (
     device_id: deviceId,
     profile_snapshot: profile,
     amount_gnf: amount,
-    duration_months: duration as CardDurationMonths,
+    duration_months: duration,
     payment_status: "pending",
     source: "mobile",
     created_at: new Date().toISOString(),
@@ -2418,7 +2462,11 @@ export const fulfillLicensePayment = async (
     return { success: false, message: "Paiement non confirmé" };
   }
 
-  const [card] = await generateLicenseCards(1, order.duration_months);
+  if (!isValidLicenseDurationMonths(order.duration_months)) {
+    return { success: false, message: "Durée licence invalide sur la commande" };
+  }
+
+  const [card] = await generateLicenseCards(1, order.duration_months as CardDurationMonths);
   if (!card) return { success: false, message: "Impossible de créer la licence" };
 
   const activation = await activateLicenseCard(card.id, card.activation_token, order.device_id);

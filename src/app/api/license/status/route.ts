@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   activateLicenseCard,
   getFirstUnusedLicenseCard,
+  getStudentAuthSessionByToken,
   getStudentLicenseByAuthToken,
   getStudentUserByAuthToken,
   isStudentProfileComplete,
@@ -24,6 +25,17 @@ export const GET = async (req: NextRequest): Promise<NextResponse> => {
       { error: true, message: "Connexion requise", code: "AUTH_REQUIRED" },
       { status: 401 }
     );
+  }
+
+  const session = await getStudentAuthSessionByToken(authToken);
+  if (!session) {
+    const { clearStudentWebSessionCookies } = await import("@/lib/license/cookies");
+    const response = NextResponse.json({
+      error: false,
+      data: { active: false, session_revoked: true },
+    });
+    clearStudentWebSessionCookies(response);
+    return response;
   }
 
   const license = await getStudentLicenseByAuthToken(authToken);

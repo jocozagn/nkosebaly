@@ -10,7 +10,21 @@ import 'package:nkosebaly/services/mobile_token_service.dart';
 import 'package:nkosebaly/widgets/brand_logo.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Activation licence mobile — code manuel, QR PVC ou achat Djomy
+class _LicensePlanOption {
+  const _LicensePlanOption({
+    required this.id,
+    required this.durationMonths,
+    required this.priceGnf,
+    required this.label,
+  });
+
+  final String id;
+  final int durationMonths;
+  final int priceGnf;
+  final String label;
+}
+
+/// Activation licence mobile — QR code, achat Djomy ou code carte
 class LicenseScanScreen extends StatefulWidget {
   const LicenseScanScreen({super.key});
 
@@ -33,8 +47,8 @@ class _LicenseScanScreenState extends State<LicenseScanScreen> with SingleTicker
   bool _isLoading = false;
   bool _isPaying = false;
   bool _showScanner = true;
-  int _licensePrice = 0;
-  int _licenseDurationMonths = 3;
+  List<_LicensePlanOption> _plans = [];
+  int _selectedDurationMonths = 3;
   bool _djomyEnabled = false;
 
   @override
@@ -62,10 +76,45 @@ class _LicenseScanScreenState extends State<LicenseScanScreen> with SingleTicker
       if (res['error'] == true) return;
       final data = res['data'] as Map<String, dynamic>?;
       if (data == null) return;
+
+      final rawPlans = data['plans'] as List<dynamic>?;
+      final parsedPlans = <_LicensePlanOption>[];
+
+      if (rawPlans != null) {
+        for (final item in rawPlans) {
+          if (item is! Map) continue;
+          final duration = (item['duration_months'] as num?)?.toInt() ?? 0;
+          final price = (item['price_gnf'] as num?)?.toInt() ?? 0;
+          if (duration <= 0 || price <= 0) continue;
+          parsedPlans.add(_LicensePlanOption(
+            id: item['id']?.toString() ?? 'plan-$duration',
+            durationMonths: duration,
+            priceGnf: price,
+            label: item['label']?.toString() ?? '$duration mois',
+          ));
+        }
+      }
+
+      // Rétrocompatibilité API ancienne (prix unique)
+      if (parsedPlans.isEmpty) {
+        final legacyPrice = (data['license_price'] as num?)?.toInt() ?? 0;
+        final legacyDuration = (data['license_duration_months'] as num?)?.toInt() ?? 3;
+        if (legacyPrice > 0) {
+          parsedPlans.add(_LicensePlanOption(
+            id: 'legacy',
+            durationMonths: legacyDuration,
+            priceGnf: legacyPrice,
+            label: '$legacyDuration mois',
+          ));
+        }
+      }
+
       setState(() {
-        _licensePrice = (data['license_price'] as num?)?.toInt() ?? 0;
-        _licenseDurationMonths = (data['license_duration_months'] as num?)?.toInt() ?? 3;
+        _plans = parsedPlans;
         _djomyEnabled = data['djomy_enabled'] == true;
+        if (parsedPlans.isNotEmpty) {
+          _selectedDurationMonths = parsedPlans.first.durationMonths;
+        }
       });
     } catch (_) {
       // Tarif optionnel — l'onglet achat affichera un message
@@ -172,6 +221,11 @@ class _LicenseScanScreenState extends State<LicenseScanScreen> with SingleTicker
       return;
     }
 
+    if (_plans.isEmpty) {
+      _showSnack('Aucune formule licence disponible');
+      return;
+    }
+
     setState(() => _isPaying = true);
 
     try {
@@ -182,6 +236,7 @@ class _LicenseScanScreenState extends State<LicenseScanScreen> with SingleTicker
         'email': _emailCtrl.text.trim(),
         'city': _cityCtrl.text.trim(),
         'occupation': _occupationCtrl.text.trim(),
+        'duration_months': _selectedDurationMonths,
       }, deviceIdOverride: deviceId);
 
       if (res['error'] == true) {
@@ -298,10 +353,11 @@ class _LicenseScanScreenState extends State<LicenseScanScreen> with SingleTicker
           indicatorColor: const Color(0xFFD4AF37),
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
+          // Ordre : QR (défaut) → Acheter → Code
           tabs: const [
-            Tab(text: 'Code', icon: Icon(Icons.tag)),
-            Tab(text: 'QR PVC', icon: Icon(Icons.qr_code_scanner)),
+            Tab(text: 'QR code', icon: Icon(Icons.qr_code_scanner)),
             Tab(text: 'Acheter', icon: Icon(Icons.shopping_cart)),
+            Tab(text: 'Code', icon: Icon(Icons.tag)),
           ],
         ),
         actions: [
@@ -315,127 +371,15 @@ class _LicenseScanScreenState extends State<LicenseScanScreen> with SingleTicker
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildTabContent(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('Code imprimé sur la carte (NKO-XXXX-XXXX)', style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _codeCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    labelText: 'Code licence *',
-                    hintText: 'NKO-AB12-XY34',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _isLoading ? null : () => _activate(licenseCode: _codeCtrl.text),
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF7D4E2D), padding: const EdgeInsets.symmetric(vertical: 14)),
-                  child: _isLoading
-                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Activer avec mon code'),
-                ),
-              ],
-            ),
-          ),
-          _buildTabContent(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_showScanner) ...[
-                  const Text('Scannez le QR au verso de votre carte PVC', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(height: 220, child: MobileScanner(onDetect: _onQrDetected)),
-                  ),
-                ] else ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
-                    child: const Row(children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width: 8), Text('Carte scannée ✓')]),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() { _showScanner = true; _qrData = null; }),
-                    child: const Text('Rescanner'),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _isLoading ? null : () => _activate(qrData: _qrData),
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF7D4E2D), padding: const EdgeInsets.symmetric(vertical: 14)),
-                  child: _isLoading
-                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Activer avec le QR'),
-                ),
-              ],
-            ),
-          ),
-          _buildTabContent(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Licence numérique — sans carte PVC', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF7D4E2D))),
-                      const SizedBox(height: 6),
-                      if (_licensePrice > 0)
-                        Text(
-                          '${_formatGnf(_licensePrice)} GNF / $_licenseDurationMonths mois',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        )
-                      else
-                        const Text('Chargement du tarif...'),
-                      const SizedBox(height: 6),
-                      Text('Paiement sécurisé via Djomy', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                    ],
-                  ),
-                ),
-                if (!_djomyEnabled) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
-                    child: const Text('Paiement en ligne indisponible. Utilisez un code licence ou contactez-nous.'),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: (_isPaying || !_djomyEnabled) ? null : _payLicense,
-                  icon: _isPaying
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.payment),
-                  label: Text(_isPaying ? 'Ouverture...' : 'Payer en ligne'),
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF7D4E2D), padding: const EdgeInsets.symmetric(vertical: 14)),
-                ),
-                if (_pendingOrderId != null) ...[
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _verifyPayment,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('J\'ai payé — vérifier'),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          _buildQrTab(),
+          _buildBuyTab(),
+          _buildCodeTab(),
         ],
       ),
     );
   }
 
-  Widget _buildTabContent({required Widget child}) {
+  Widget _buildScrollTab({required List<Widget> children}) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -443,17 +387,179 @@ class _LicenseScanScreenState extends State<LicenseScanScreen> with SingleTicker
         children: [
           const Center(child: BrandLogo(size: 72)),
           const SizedBox(height: 16),
-          const Text('Vos informations', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7D4E2D))),
-          const SizedBox(height: 12),
-          _field(_nameCtrl, 'Nom complet *', TextInputType.name),
-          _field(_phoneCtrl, 'Téléphone *', TextInputType.phone),
-          _field(_cityCtrl, 'Ville', TextInputType.text),
-          _field(_emailCtrl, 'E-mail', TextInputType.emailAddress),
-          _field(_occupationCtrl, 'Profession', TextInputType.text),
-          const SizedBox(height: 20),
-          child,
+          ...children,
         ],
       ),
+    );
+  }
+
+  Widget _buildProfileSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('Vos informations', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7D4E2D))),
+        const SizedBox(height: 12),
+        _field(_nameCtrl, 'Nom complet *', TextInputType.name),
+        _field(_phoneCtrl, 'Téléphone *', TextInputType.phone),
+        _field(_cityCtrl, 'Ville', TextInputType.text),
+        _field(_emailCtrl, 'E-mail', TextInputType.emailAddress),
+        _field(_occupationCtrl, 'Profession', TextInputType.text),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  /// Onglet 1 — scan QR (ouvert par défaut)
+  Widget _buildQrTab() {
+    return _buildScrollTab(
+      children: [
+        if (_showScanner) ...[
+          const Text('Scannez le QR code au verso de votre carte', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(height: 220, child: MobileScanner(onDetect: _onQrDetected)),
+          ),
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+            child: const Row(children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width: 8), Text('QR code scanné ✓')]),
+          ),
+          TextButton(
+            onPressed: () => setState(() { _showScanner = true; _qrData = null; }),
+            child: const Text('Rescanner'),
+          ),
+        ],
+        const SizedBox(height: 16),
+        _buildProfileSection(),
+        FilledButton(
+          onPressed: _isLoading ? null : () => _activate(qrData: _qrData),
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF7D4E2D), padding: const EdgeInsets.symmetric(vertical: 14)),
+          child: _isLoading
+              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Text('Activer avec le QR code'),
+        ),
+      ],
+    );
+  }
+
+  /// Onglet 2 — achat en ligne Djomy (plusieurs formules)
+  Widget _buildBuyTab() {
+    return _buildScrollTab(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F4F6),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Licence numérique — choisissez votre formule',
+                style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF7D4E2D)),
+              ),
+              const SizedBox(height: 10),
+              if (_plans.isEmpty)
+                const Text('Chargement des tarifs...')
+              else
+                ..._plans.map((plan) {
+                  final selected = _selectedDurationMonths == plan.durationMonths;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InkWell(
+                      onTap: () => setState(() => _selectedDurationMonths = plan.durationMonths),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: selected ? Colors.white : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: selected ? const Color(0xFF7D4E2D) : Colors.grey.shade300,
+                            width: selected ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(plan.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${_formatGnf(plan.priceGnf)} GNF',
+                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF7D4E2D)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              const SizedBox(height: 4),
+              Text('Paiement sécurisé via Djomy', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+            ],
+          ),
+        ),
+        if (!_djomyEnabled) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
+            child: const Text('Paiement en ligne indisponible. Utilisez un code licence ou contactez-nous.'),
+          ),
+        ],
+        const SizedBox(height: 16),
+        _buildProfileSection(),
+        FilledButton.icon(
+          onPressed: (_isPaying || !_djomyEnabled || _plans.isEmpty) ? null : _payLicense,
+          icon: _isPaying
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.payment),
+          label: Text(_isPaying ? 'Ouverture...' : 'Payer en ligne'),
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF7D4E2D), padding: const EdgeInsets.symmetric(vertical: 14)),
+        ),
+        if (_pendingOrderId != null) ...[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _isLoading ? null : _verifyPayment,
+            icon: const Icon(Icons.refresh),
+            label: const Text('J\'ai payé — vérifier'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Onglet 3 — code carte (champ code en haut, avant le profil)
+  Widget _buildCodeTab() {
+    return _buildScrollTab(
+      children: [
+        const Text('Code imprimé sur la carte', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _codeCtrl,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(
+            labelText: 'Code licence *',
+            hintText: 'NKO-AB12-XY34',
+            helperText: 'Format NKO-XXXX-XXXX',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _buildProfileSection(),
+        FilledButton(
+          onPressed: _isLoading ? null : () => _activate(licenseCode: _codeCtrl.text),
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF7D4E2D), padding: const EdgeInsets.symmetric(vertical: 14)),
+          child: _isLoading
+              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Text('Activer avec mon code'),
+        ),
+      ],
     );
   }
 

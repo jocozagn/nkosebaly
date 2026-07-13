@@ -30,6 +30,8 @@ const CARD = {
 } as const;
 
 const DURATION_LABELS: Record<CardDurationMonths, string> = {
+  1: "1 mois",
+  2: "2 mois",
   3: "3 mois",
   6: "6 mois",
   12: "12 mois",

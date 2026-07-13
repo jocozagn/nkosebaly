@@ -24,7 +24,12 @@ export const POST = async (req: NextRequest): Promise<NextResponse> => {
     return NextResponse.json({ error: true, message: profileCheck.message }, { status: 400 });
   }
 
-  const result = await initiateLicensePurchaseByDeviceId(deviceId, profileCheck.data);
+  const durationMonths = Number(body?.duration_months);
+  if (!Number.isFinite(durationMonths) || durationMonths < 1) {
+    return NextResponse.json({ error: true, message: "duration_months requis" }, { status: 400 });
+  }
+
+  const result = await initiateLicensePurchaseByDeviceId(deviceId, profileCheck.data, durationMonths);
 
   if ("error" in result) {
     return NextResponse.json({ error: true, message: result.error }, { status: 400 });

@@ -17,7 +17,15 @@ interface LicenseInfo {
   code_text?: string;
 }
 
+interface LicensePlanOption {
+  id: string;
+  duration_months: number;
+  price_gnf: number;
+  label: string;
+}
+
 interface LicensePricing {
+  plans: LicensePlanOption[];
   license_price: number;
   license_duration_months: number;
   djomy_enabled: boolean;
@@ -37,6 +45,7 @@ const ActivateLicensePage = () => {
   const [qrData, setQrData] = useState("");
   const [profile, setProfile] = useState<StudentProfileFormData>(defaultProfile);
   const [pricing, setPricing] = useState<LicensePricing | null>(null);
+  const [selectedDurationMonths, setSelectedDurationMonths] = useState<number>(3);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [isDevActivating, setIsDevActivating] = useState(false);
@@ -60,7 +69,19 @@ const ActivateLicensePage = () => {
     setIsChecking(false);
 
     if (!pricingJson.error && pricingJson.data) {
-      setPricing(pricingJson.data);
+      const data = pricingJson.data as LicensePricing;
+      setPricing(data);
+      const firstPlan = data.plans?.[0];
+      if (firstPlan) {
+        setSelectedDurationMonths(firstPlan.duration_months);
+      } else if (data.license_duration_months) {
+        setSelectedDurationMonths(data.license_duration_months);
+      }
+    }
+
+    if (!result.error && result.data?.session_revoked) {
+      window.location.assign("/");
+      return;
     }
 
     if (!result.error && result.data?.active) {
@@ -151,13 +172,22 @@ const ActivateLicensePage = () => {
       return;
     }
 
+    const selectedPlan =
+      pricing.plans?.find((plan) => plan.duration_months === selectedDurationMonths) ??
+      pricing.plans?.[0];
+
+    if (!selectedPlan) {
+      toast.error("Aucune formule licence disponible");
+      return;
+    }
+
     setIsPaying(true);
     try {
       await fetch("/api/license/status", { method: "POST" });
       const res = await fetch("/api/license/pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
+        body: JSON.stringify({ ...profile, duration_months: selectedPlan.duration_months }),
       });
       const result = await res.json();
 
@@ -392,25 +422,49 @@ const ActivateLicensePage = () => {
           {tab === "buy" && (
             <form onSubmit={handleBuyOnline} className="mt-6 space-y-4">
               <div
-                className="rounded-lg border border-[#e8ddd4] p-4"
+                className="rounded-lg border border-[#e8ddd4] p-4 space-y-4"
                 style={{ backgroundColor: "var(--brand-bg)" }}
               >
-                <p className="text-sm font-medium mb-1" style={{ color: "var(--brand-brown)" }}>
-                  Licence numérique — sans carte PVC
+                <p className="text-sm font-medium" style={{ color: "var(--brand-brown)" }}>
+                  Licence numérique — choisissez votre formule
                 </p>
-                {pricing ? (
-                  <p className="text-lg font-bold" style={{ color: "var(--brand-brown-dark)" }}>
-                    {formatGnf(pricing.license_price)} GNF
-                    <span className="text-sm font-normal ml-2" style={{ color: "var(--brand-gray)" }}>
-                      / {pricing.license_duration_months} mois
-                    </span>
+
+                {!pricing ? (
+                  <p className="text-sm" style={{ color: "var(--brand-gray)" }}>
+                    Chargement des tarifs...
+                  </p>
+                ) : pricing.plans.length === 0 ? (
+                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                    Aucune formule active. Contactez l&apos;administrateur.
                   </p>
                 ) : (
-                  <p className="text-sm" style={{ color: "var(--brand-gray)" }}>
-                    Chargement du tarif...
-                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {pricing.plans.map((plan) => {
+                      const isSelected = selectedDurationMonths === plan.duration_months;
+                      return (
+                        <button
+                          key={plan.id}
+                          type="button"
+                          onClick={() => setSelectedDurationMonths(plan.duration_months)}
+                          className="text-left rounded-lg border-2 px-4 py-3 transition-colors"
+                          style={{
+                            borderColor: isSelected ? "var(--brand-brown)" : "#e8ddd4",
+                            backgroundColor: isSelected ? "white" : "transparent",
+                          }}
+                        >
+                          <p className="text-sm font-semibold" style={{ color: "var(--brand-brown-dark)" }}>
+                            {plan.label}
+                          </p>
+                          <p className="text-lg font-bold mt-1" style={{ color: "var(--brand-brown)" }}>
+                            {formatGnf(plan.price_gnf)} GNF
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
-                <p className="text-xs mt-2" style={{ color: "var(--brand-gray)" }}>
+
+                <p className="text-xs" style={{ color: "var(--brand-gray)" }}>
                   Paiement sécurisé via Djomy (Orange Money, MTN, carte bancaire…)
                 </p>
               </div>
@@ -423,7 +477,7 @@ const ActivateLicensePage = () => {
 
               <button
                 type="submit"
-                disabled={isPaying || !pricing?.djomy_enabled}
+                disabled={isPaying || !pricing?.djomy_enabled || !pricing?.plans?.length}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white text-sm font-semibold rounded disabled:opacity-50"
                 style={{ backgroundColor: "var(--brand-brown)" }}
               >

@@ -4,7 +4,7 @@ export type CourseLevel = "debutant" | "intermediaire" | "avance";
 export type CourseStatus = "draft" | "published";
 export type QuizCategory = "grammaire" | "vocabulaire" | "ecriture" | "comprehension";
 export type QuizDifficulty = "facile" | "moyen" | "difficile";
-export type CardDurationMonths = 3 | 6 | 12;
+export type CardDurationMonths = 1 | 2 | 3 | 6 | 12;
 export type CardStatus = "unused" | "active" | "expired" | "disabled";
 export type PaymentStatus = "pending" | "paid";
 
@@ -370,16 +370,30 @@ export interface AdminCertificate {
   djomy_transaction_id?: string;
 }
 
+export interface LicensePlan {
+  id: string;
+  /** Durée d'accès en mois */
+  duration_months: number;
+  /** Prix Djomy en GNF */
+  price_gnf: number;
+  /** Libellé optionnel (sinon « X mois ») */
+  label?: string;
+  /** Formule visible à l'achat en ligne */
+  active: boolean;
+}
+
 export interface AdminSettings {
   app_name: string;
   contact_email: string;
   contact_phone: string;
   commission_rate: number;
   instructor_auto_approve: boolean;
-  /** Prix licence en ligne (GNF) — achat sans carte PVC */
+  /** @deprecated — utiliser license_plans. Conservé pour migration. */
   license_price: number;
-  /** Durée licence achetée en ligne (mois) */
+  /** @deprecated — utiliser license_plans. Conservé pour migration. */
   license_duration_months: CardDurationMonths;
+  /** Formules licence en ligne (Djomy) — plusieurs durées / prix */
+  license_plans?: LicensePlan[];
   certificate_price: number;
   quiz_pass_threshold: number;
   quiz_max_attempts: number;
@@ -398,7 +412,7 @@ export interface LicenseOrder {
     occupation?: string;
   };
   amount_gnf: number;
-  duration_months: CardDurationMonths;
+  duration_months: number;
   payment_status: PaymentStatus;
   djomy_link_reference?: string;
   djomy_transaction_id?: string;

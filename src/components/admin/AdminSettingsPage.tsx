@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import BrandLoader from "@/components/ui/BrandLoader";
+import { DEFAULT_LICENSE_PLANS } from "@/lib/license/plans";
 import type { AdminSettings } from "@/lib/admin/types";
 
 /** Paramètres système — inspiré WRTeam System Settings */
@@ -15,7 +16,13 @@ const AdminSettingsPage = () => {
     fetch("/api/admin/settings")
       .then((r) => r.json())
       .then((res) => {
-        if (!res.error) setSettings(res.data);
+        if (!res.error) {
+          const data = res.data as AdminSettings;
+          setSettings({
+            ...data,
+            license_plans: data.license_plans?.length ? data.license_plans : DEFAULT_LICENSE_PLANS,
+          });
+        }
       });
   }, []);
 
@@ -100,37 +107,110 @@ const AdminSettingsPage = () => {
           Approuver automatiquement les instructeurs
         </label>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#f0e8df]">
+        <div className="pt-2 border-t border-[#f0e8df] space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Prix licence en ligne (GNF)</label>
-            <input
-              type="number"
-              min={0}
-              value={settings.license_price}
-              onChange={(e) => setSettings({ ...settings, license_price: Number(e.target.value) })}
-              className="w-full px-4 py-2.5 border border-[#e8ddd4] rounded"
-            />
-            <p className="text-xs mt-1" style={{ color: "var(--brand-gray)" }}>
-              Pour les élèves sans carte PVC (paiement Djomy)
+            <h3 className="text-sm font-semibold mb-1" style={{ color: "var(--brand-brown)" }}>
+              Formules licence en ligne (Djomy)
+            </h3>
+            <p className="text-xs mb-3" style={{ color: "var(--brand-gray)" }}>
+              Plusieurs durées / prix — l&apos;élève choisit avant le paiement (web + mobile)
             </p>
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Durée licence en ligne (mois)</label>
-            <select
-              value={settings.license_duration_months}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  license_duration_months: Number(e.target.value) as AdminSettings["license_duration_months"],
-                })
-              }
-              className="w-full px-4 py-2.5 border border-[#e8ddd4] rounded"
-            >
-              <option value={3}>3 mois</option>
-              <option value={6}>6 mois</option>
-              <option value={12}>12 mois</option>
-            </select>
+
+          <div className="space-y-3">
+            {(settings.license_plans ?? []).map((plan, index) => (
+              <div
+                key={plan.id || index}
+                className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end p-3 rounded border border-[#f0e8df] bg-[var(--brand-bg)]"
+              >
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium mb-1">Durée (mois)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={24}
+                    value={plan.duration_months}
+                    onChange={(e) => {
+                      const plans = [...(settings.license_plans ?? [])];
+                      plans[index] = { ...plan, duration_months: Number(e.target.value) };
+                      setSettings({ ...settings, license_plans: plans });
+                    }}
+                    className="w-full px-3 py-2 border border-[#e8ddd4] rounded text-sm"
+                  />
+                </div>
+                <div className="sm:col-span-3">
+                  <label className="block text-xs font-medium mb-1">Prix (GNF)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={plan.price_gnf}
+                    onChange={(e) => {
+                      const plans = [...(settings.license_plans ?? [])];
+                      plans[index] = { ...plan, price_gnf: Number(e.target.value) };
+                      setSettings({ ...settings, license_plans: plans });
+                    }}
+                    className="w-full px-3 py-2 border border-[#e8ddd4] rounded text-sm"
+                  />
+                </div>
+                <div className="sm:col-span-4">
+                  <label className="block text-xs font-medium mb-1">Libellé (optionnel)</label>
+                  <input
+                    value={plan.label ?? ""}
+                    onChange={(e) => {
+                      const plans = [...(settings.license_plans ?? [])];
+                      plans[index] = { ...plan, label: e.target.value };
+                      setSettings({ ...settings, license_plans: plans });
+                    }}
+                    placeholder="ex: Essai 1 mois"
+                    className="w-full px-3 py-2 border border-[#e8ddd4] rounded text-sm"
+                  />
+                </div>
+                <div className="sm:col-span-2 flex items-center gap-2 pb-2">
+                  <input
+                    type="checkbox"
+                    checked={plan.active}
+                    onChange={(e) => {
+                      const plans = [...(settings.license_plans ?? [])];
+                      plans[index] = { ...plan, active: e.target.checked };
+                      setSettings({ ...settings, license_plans: plans });
+                    }}
+                  />
+                  <span className="text-xs">Active</span>
+                </div>
+                <div className="sm:col-span-1 flex justify-end pb-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const plans = (settings.license_plans ?? []).filter((_, i) => i !== index);
+                      setSettings({ ...settings, license_plans: plans });
+                    }}
+                    className="text-xs underline"
+                    style={{ color: "var(--brand-gray)" }}
+                  >
+                    Suppr.
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const plans = [...(settings.license_plans ?? [])];
+              plans.push({
+                id: `plan-${Date.now()}`,
+                duration_months: 3,
+                price_gnf: 150000,
+                active: true,
+              });
+              setSettings({ ...settings, license_plans: plans });
+            }}
+            className="text-sm font-medium underline"
+            style={{ color: "var(--brand-brown)" }}
+          >
+            + Ajouter une formule
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-[#f0e8df]">
