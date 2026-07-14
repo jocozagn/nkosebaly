@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminCredentials, signAdminToken, ADMIN_TOKEN_COOKIE } from "@/lib/admin/auth";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 /** Connexion administrateur (email + mot de passe) */
 export const POST = async (request: NextRequest): Promise<NextResponse> => {
+  const rateLimited = checkRateLimit(request, {
+    scope: "admin-login",
+    limit: 5,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
   const body = await request.json().catch(() => null);
   const email = body?.email as string | undefined;
   const password = body?.password as string | undefined;

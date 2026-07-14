@@ -21,12 +21,35 @@ Plateforme e-LMS **Next.js 15** (web + admin) + app **Flutter Android** (`nkoseb
 
 ## Déploiement web (VPS)
 
+Script sécurisé (backup auto + protection `data/admin/store.json` + smoke test) :
+
+```bash
+bash /var/www/NKO/scripts/deploy-nko-vps.sh
+```
+
+Manuel :
 ```bash
 cd /var/www/NKO
 git pull   # ou pscp des fichiers modifiés
 npm install
 export NODE_OPTIONS='--max-old-space-size=4096'
 npm run build
+pm2 restart nko
+node scripts/smoke-health.mjs http://127.0.0.1:3001
+```
+
+### PostgreSQL (recommandé prod)
+
+```bash
+bash /var/www/NKO/scripts/vps-setup-postgres.sh
+```
+
+Active `DATA_STORE=postgres` dans `.env` et migre `data/admin/store.json`.
+
+### Sécurité .env
+
+```bash
+ROTATE_ADMIN_PASSWORD=1 bash /var/www/NKO/scripts/secure-vps-env.sh
 pm2 restart nko
 ```
 

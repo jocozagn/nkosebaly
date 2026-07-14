@@ -49,6 +49,7 @@ import {
   normalizeLicensePlans,
   resolveLicensePlanByDuration,
 } from "@/lib/license/plans";
+import { runExclusiveStoreMutation } from "@/lib/admin/store-queue";
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin");
 const DATA_FILE = path.join(DATA_DIR, "store.json");
@@ -156,14 +157,37 @@ const tryParseStoreFile = async (filePath: string): Promise<AdminData | null> =>
   }
 };
 
-export const readAdminData = async (): Promise<AdminData> => {
-  // Phase Scale : backend PostgreSQL (snapshot JSONB) si activé
+/** Lecture directe sans restauration automatique (usage interne mutations). */
+const readAdminDataDirect = async (): Promise<AdminData> => {
   if (isPostgresEnabled()) {
     const fromDb = await readAppDataFromPostgres();
     if (fromDb) return normalizeData(fromDb);
   }
 
-  // Réessaye en cas de lecture pendant une écriture concurrente
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const data = await tryParseStoreFile(DATA_FILE);
+    if (data) return data;
+    if (attempt < 3) await sleep(40);
+  }
+
+  const backup = await tryParseStoreFile(DATA_FILE_BACKUP);
+  if (backup) return backup;
+
+  try {
+    await fs.access(DATA_FILE);
+    throw new Error("store.json illisible");
+  } catch (err) {
+    if (err instanceof Error && err.message === "store.json illisible") throw err;
+    return defaultData;
+  }
+};
+
+export const readAdminData = async (): Promise<AdminData> => {
+  if (isPostgresEnabled()) {
+    const fromDb = await readAppDataFromPostgres();
+    if (fromDb) return normalizeData(fromDb);
+  }
+
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const data = await tryParseStoreFile(DATA_FILE);
     if (data) return data;
@@ -179,14 +203,38 @@ export const readAdminData = async (): Promise<AdminData> => {
   try {
     await fs.access(DATA_FILE);
     throw new Error("store.json illisible");
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.message === "store.json illisible") throw err;
     await writeAdminData(defaultData);
     return defaultData;
   }
 };
 
-export const writeAdminData = async (data: AdminData): Promise<void> => {
-  // Phase Scale : écriture PostgreSQL + backup JSON local (sécurité transition)
+/** Refuse une écriture qui effacerait une grande partie du catalogue (anti-corruption). */
+const assertStoreIntegrity = (previous: AdminData | null, next: AdminData): void => {
+  if (!previous) return;
+
+  const prevCourses = previous.courses.length;
+  const nextCourses = next.courses.length;
+  const prevLessons = previous.lessons.length;
+  const nextLessons = next.lessons.length;
+
+  if (prevCourses >= 3 && nextCourses < Math.ceil(prevCourses * 0.5)) {
+    throw new Error(
+      `Écriture store refusée : perte suspecte de cours (${prevCourses} → ${nextCourses})`
+    );
+  }
+
+  if (prevLessons >= 5 && nextLessons < Math.ceil(prevLessons * 0.5)) {
+    throw new Error(
+      `Écriture store refusée : perte suspecte de leçons (${prevLessons} → ${nextLessons})`
+    );
+  }
+};
+
+const persistAdminData = async (data: AdminData, previous: AdminData | null): Promise<void> => {
+  assertStoreIntegrity(previous, data);
+
   if (isPostgresEnabled()) {
     await writeAppDataToPostgres(data);
   }
@@ -202,6 +250,28 @@ export const writeAdminData = async (data: AdminData): Promise<void> => {
 
   await fs.writeFile(DATA_FILE_TMP, content, "utf-8");
   await fs.rename(DATA_FILE_TMP, DATA_FILE);
+};
+
+/**
+ * Mutation atomique read → modify → write (file d'attente exclusive).
+ * Préférer cette fonction pour les opérations critiques admin.
+ */
+export const mutateAdminData = async <T>(
+  mutator: (data: AdminData) => Promise<T> | T
+): Promise<T> =>
+  runExclusiveStoreMutation(async () => {
+    const previous = await readAdminDataDirect();
+    const data = normalizeData(JSON.parse(JSON.stringify(previous)) as AdminData);
+    const result = await mutator(data);
+    await persistAdminData(data, previous);
+    return result;
+  });
+
+export const writeAdminData = async (data: AdminData): Promise<void> => {
+  await runExclusiveStoreMutation(async () => {
+    const previous = await readAdminDataDirect();
+    await persistAdminData(data, previous);
+  });
 };
 
 const syncLessonCount = (data: AdminData, courseId: string): void => {

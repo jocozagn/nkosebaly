@@ -2,12 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { activateLicenseByCodeText, activateLicenseCard, createMobileAuthSession, registerStudentProfile } from "@/lib/admin/store";
 import { validateStudentProfile } from "@/lib/admin/profile";
 import { parseLicenseQrPayload } from "@/lib/license/qr-payload";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 /**
  * Activation licence par scan QR (app mobile).
  * Body: { qr_data, device_id, name, phone, email?, city?, occupation? }
  */
 export const POST = async (req: NextRequest): Promise<NextResponse> => {
+  const rateLimited = checkRateLimit(req, {
+    scope: "license-activate-mobile",
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
   const body = await req.json().catch(() => ({}));
 
   let cardId = body?.card_id as string | undefined;

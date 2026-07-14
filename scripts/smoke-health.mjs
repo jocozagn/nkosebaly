@@ -17,5 +17,18 @@ if (!res.ok || !json?.data) {
   process.exit(1);
 }
 
-console.log(`Health OK — status=${json.data.status}, store=${json.data.data_store}`);
+const { status, data_store, postgres } = json.data;
+if (status !== "ok") {
+  console.error("Health status not ok:", json.data);
+  process.exit(1);
+}
+
+if (data_store === "postgres" && postgres?.enabled && postgres?.connected !== true) {
+  console.error("PostgreSQL enabled but not connected:", postgres);
+  process.exit(1);
+}
+
+console.log(
+  `Health OK — status=${status}, store=${data_store}, postgres=${postgres?.connected ?? "n/a"}`
+);
 process.exit(0);

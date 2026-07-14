@@ -14,9 +14,17 @@ import {
   setLicenseCookies,
   setProfileCompleteCookie,
 } from "@/lib/license/require-license";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 /** Active une carte licence PVC depuis le navigateur web + enregistre le profil */
 export const POST = async (req: NextRequest): Promise<NextResponse> => {
+  const rateLimited = checkRateLimit(req, {
+    scope: "license-activate-web",
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
   const authToken = getAuthToken(req);
   if (!authToken) {
     return NextResponse.json(
