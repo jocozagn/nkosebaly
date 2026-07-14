@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:nkosebaly/screens/home_screen.dart';
 import 'package:nkosebaly/screens/license_scan_screen.dart';
+import 'package:nkosebaly/services/app_update_service.dart';
 import 'package:nkosebaly/services/license_status_cache.dart';
 import 'package:nkosebaly/services/balandou_api.dart';
 import 'package:nkosebaly/services/device_service.dart';
@@ -20,6 +21,8 @@ class _GateScreenState extends State<GateScreen> {
   @override
   void initState() {
     super.initState();
+    // Pré-charge la version APK pendant la vérification licence.
+    AppUpdateService.check();
     _checkLicense();
   }
 

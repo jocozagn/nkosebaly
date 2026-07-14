@@ -44,6 +44,11 @@ export const PUT = async (request: NextRequest): Promise<NextResponse> => {
     certificate_price: Number(body?.certificate_price ?? current.certificate_price),
     quiz_pass_threshold: Number(body?.quiz_pass_threshold ?? current.quiz_pass_threshold),
     quiz_max_attempts: Number(body?.quiz_max_attempts ?? current.quiz_max_attempts),
+    mobile_app_version: String(body?.mobile_app_version ?? current.mobile_app_version ?? "1.0.0"),
+    mobile_app_build: Number(body?.mobile_app_build ?? current.mobile_app_build ?? 1),
+    mobile_app_release_notes: String(
+      body?.mobile_app_release_notes ?? current.mobile_app_release_notes ?? ""
+    ),
   });
 
   return NextResponse.json({ error: false, data: settings });

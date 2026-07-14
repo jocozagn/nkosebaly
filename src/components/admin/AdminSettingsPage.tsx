@@ -213,6 +213,49 @@ const AdminSettingsPage = () => {
           </button>
         </div>
 
+        <div className="pt-2 border-t border-[#f0e8df] space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold mb-1" style={{ color: "var(--brand-brown)" }}>
+              Application mobile (APK)
+            </h3>
+            <p className="text-xs mb-3" style={{ color: "var(--brand-gray)" }}>
+              Incrémentez le build après chaque nouvel APK — un bandeau « Mettre à jour » apparaît dans l&apos;app si la version serveur est plus récente.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Version (ex. 1.0.1)</label>
+              <input
+                value={settings.mobile_app_version ?? "1.0.0"}
+                onChange={(e) => setSettings({ ...settings, mobile_app_version: e.target.value })}
+                className="w-full px-4 py-2.5 border border-[#e8ddd4] rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Build Android (versionCode)</label>
+              <input
+                type="number"
+                min={1}
+                value={settings.mobile_app_build ?? 1}
+                onChange={(e) => setSettings({ ...settings, mobile_app_build: Number(e.target.value) })}
+                className="w-full px-4 py-2.5 border border-[#e8ddd4] rounded"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Notes de version (bandeau in-app)</label>
+            <textarea
+              rows={2}
+              value={settings.mobile_app_release_notes ?? ""}
+              onChange={(e) => setSettings({ ...settings, mobile_app_release_notes: e.target.value })}
+              className="w-full px-4 py-2.5 border border-[#e8ddd4] rounded text-sm"
+              placeholder="Ex. : Nouvelles leçons, corrections vidéos..."
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-[#f0e8df]">
           <div>
             <label className="block text-sm font-medium mb-1">Prix certificat (GNF)</label>

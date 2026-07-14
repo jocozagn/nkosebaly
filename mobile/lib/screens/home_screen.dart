@@ -6,6 +6,7 @@ import 'package:nkosebaly/screens/certificates_screen.dart';
 import 'package:nkosebaly/screens/license_scan_screen.dart';
 import 'package:nkosebaly/screens/profile_screen.dart';
 import 'package:nkosebaly/screens/web_qr_scan_screen.dart';
+import 'package:nkosebaly/widgets/app_update_banner.dart';
 import 'package:nkosebaly/services/balandou_api.dart';
 import 'package:nkosebaly/services/courses_cache.dart';
 import 'package:nkosebaly/services/license_status_cache.dart';
@@ -303,6 +304,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF7D4E2D)),
                     ),
                   const SizedBox(height: 16),
+                  const AppUpdateBanner(),
                   _offlineBanner(),
                   Row(
                     children: [

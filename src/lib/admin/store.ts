@@ -68,6 +68,9 @@ const defaultSettings: AdminSettings = {
   certificate_price: 50000,
   quiz_pass_threshold: 15,
   quiz_max_attempts: 3,
+  mobile_app_version: "1.0.1",
+  mobile_app_build: 2,
+  mobile_app_release_notes: "Corrections et améliorations KARAMOO SEEBALI.",
 };
 
 const defaultData: AdminData = {

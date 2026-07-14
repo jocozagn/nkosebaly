@@ -397,6 +397,12 @@ export interface AdminSettings {
   certificate_price: number;
   quiz_pass_threshold: number;
   quiz_max_attempts: number;
+  /** Version affichée APK mobile (ex. 1.0.1) */
+  mobile_app_version?: string;
+  /** Numéro de build Android (versionCode) — incrémenter à chaque APK */
+  mobile_app_build?: number;
+  /** Notes courtes affichées dans le bandeau de mise à jour */
+  mobile_app_release_notes?: string;
 }
 
 /** Commande licence payée en ligne (Djomy) */

@@ -4,9 +4,11 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:nkosebaly/config/app_settings.dart';
 import 'package:nkosebaly/screens/home_screen.dart';
 import 'package:nkosebaly/screens/web_qr_scan_screen.dart';
+import 'package:nkosebaly/services/app_update_service.dart';
 import 'package:nkosebaly/services/balandou_api.dart';
 import 'package:nkosebaly/services/device_service.dart';
 import 'package:nkosebaly/services/mobile_token_service.dart';
+import 'package:nkosebaly/widgets/app_update_banner.dart';
 import 'package:nkosebaly/widgets/brand_logo.dart';
 import 'package:nkosebaly/widgets/brand_title.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -56,6 +58,7 @@ class _LicenseScanScreenState extends State<LicenseScanScreen> with SingleTicker
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    AppUpdateService.check();
     _loadPricing();
   }
 
@@ -390,6 +393,7 @@ class _LicenseScanScreenState extends State<LicenseScanScreen> with SingleTicker
           const SizedBox(height: 12),
           const BrandTitle(showProfessor: true, showContact: true),
           const SizedBox(height: 16),
+          const AppUpdateBanner(),
           ...children,
         ],
       ),

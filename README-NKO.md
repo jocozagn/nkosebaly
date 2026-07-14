@@ -65,7 +65,8 @@ pm2 restart nko
    ```bash
    scp build/app/outputs/flutter-apk/app-release.apk root@VPS:/var/www/NKO/public/apk/nkosebaly-latest.apk
    ```
-3. Vérifier : https://silycor.xyz/get-app
+3. **Admin → Paramètres** : incrémenter **Build Android** (ex. 1 → 2) et mettre à jour la **Version** si besoin — le bandeau « Mettre à jour » apparaît dans l'app pour les utilisateurs en retard.
+4. Vérifier : https://silycor.xyz/get-app
 
 ## Backup quotidien
 
