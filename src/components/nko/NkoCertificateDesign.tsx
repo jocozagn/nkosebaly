@@ -50,11 +50,20 @@ const NkoCertificateDesign = ({
             height={80}
             className="h-16 w-16 md:h-20 md:w-20 rounded-full object-cover ring-4 ring-[var(--brand-gold)]"
           />
-          <p className="text-xs md:text-sm font-bold tracking-widest uppercase" style={{ color: "var(--brand-brown)" }}>
+          <p className="font-nko text-xs md:text-sm font-bold tracking-wide" style={{ color: "var(--brand-brown)" }}>
+            {BRAND.nameNko}
+          </p>
+          <p className="text-[10px] md:text-xs font-bold tracking-widest uppercase" style={{ color: "var(--brand-brown-dark)" }}>
             {BRAND.name}
           </p>
-          <p className="text-[10px] md:text-xs" style={{ color: "var(--brand-gray)" }}>
-            {BRAND.tagline}
+          <p className="font-nko text-[10px] md:text-xs mt-1" style={{ color: "var(--brand-gray)" }}>
+            {BRAND.taglineNko}
+          </p>
+          <p className="font-nko text-[10px] md:text-xs mt-2" style={{ color: "var(--brand-brown)" }}>
+            {BRAND.professor.nko}
+          </p>
+          <p className="text-[9px] md:text-[10px]" style={{ color: "var(--brand-gray)" }}>
+            {BRAND.professor.french}
           </p>
         </div>
 
@@ -90,8 +99,8 @@ const NkoCertificateDesign = ({
           <p className="text-[9px] md:text-[10px] break-all" style={{ color: "var(--brand-gray)" }}>
             Vérification : {fullVerifyUrl}
           </p>
-          <p className="text-[9px]" style={{ color: "var(--brand-gray)" }}>
-            {BRAND.contact.email} · {BRAND.contact.phoneDisplay}
+          <p className="text-[9px] md:text-[10px] break-all" style={{ color: "var(--brand-gray)" }}>
+            {BRAND.contact.email} · <span className="font-nko">{BRAND.contact.phoneDisplayNko}</span>
           </p>
         </div>
       </div>

@@ -8,6 +8,7 @@ import 'package:nkosebaly/services/balandou_api.dart';
 import 'package:nkosebaly/services/device_service.dart';
 import 'package:nkosebaly/services/mobile_token_service.dart';
 import 'package:nkosebaly/widgets/brand_logo.dart';
+import 'package:nkosebaly/widgets/brand_title.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class _LicensePlanOption {
@@ -386,6 +387,8 @@ class _LicenseScanScreenState extends State<LicenseScanScreen> with SingleTicker
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Center(child: BrandLogo(size: 72)),
+          const SizedBox(height: 12),
+          const BrandTitle(showProfessor: true, showContact: true),
           const SizedBox(height: 16),
           ...children,
         ],

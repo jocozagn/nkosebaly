@@ -25,7 +25,7 @@ const ProtectedVideoPlayer = ({
   title,
   courseId,
   lessonId,
-  watermark = `${BRAND.name} — Lecture seule`,
+  watermark = `${BRAND.nameNko} — Lecture seule`,
   onLessonCompleted,
 }: ProtectedVideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -168,7 +168,7 @@ const ProtectedVideoPlayer = ({
       </div>
       <div className="pointer-events-none absolute top-3 left-3 text-[10px] text-white/30 font-medium">{watermark}</div>
       <div className="pointer-events-none absolute bottom-12 right-3 text-[10px] text-white/30 font-medium">
-        {new Date().getFullYear()} · {BRAND.name}
+        {new Date().getFullYear()} · {BRAND.nameNko}
       </div>
     </div>
   );

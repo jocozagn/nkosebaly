@@ -6,6 +6,7 @@ import { Loader2, RefreshCw, Smartphone } from "lucide-react";
 import Image from "next/image";
 import NkoShell from "./NkoShell";
 import { BRAND } from "@/constants/brand";
+import BrandTitle from "./BrandTitle";
 import BrandLoader from "@/components/ui/BrandLoader";
 import { triggerNavigationStart } from "@/utils/navigation";
 
@@ -185,9 +186,7 @@ const QrLoginPage = () => {
 
           <div className="bg-white rounded-lg shadow-sm border border-[#e8ddd4] p-4 sm:p-6 md:p-8 w-full">
             <div className="text-center mb-6">
-              <h1 className="text-xl md:text-2xl font-bold mb-1" style={{ color: "var(--brand-brown)" }}>
-                {BRAND.name}
-              </h1>
+              <BrandTitle showProfessor className="mb-3 flex flex-col items-center" />
               <p className="text-sm font-medium mb-1" style={{ color: "var(--brand-black)" }}>
                 Connexion à la plateforme
               </p>
@@ -279,8 +278,8 @@ const QrLoginPage = () => {
 
           <p className="mt-6 text-center text-xs" style={{ color: "var(--brand-gray)" }}>
             Besoin d&apos;aide ?{" "}
-            <a href={`tel:${BRAND.contact.phone}`} className="underline" style={{ color: "var(--brand-brown)" }}>
-              {BRAND.contact.phoneDisplay}
+            <a href={`tel:${BRAND.contact.phone}`} className="font-nko underline" style={{ color: "var(--brand-brown)" }}>
+              {BRAND.contact.phoneDisplayNko}
             </a>
             {" · "}
             <a href={`mailto:${BRAND.contact.email}`} className="underline" style={{ color: "var(--brand-brown)" }}>

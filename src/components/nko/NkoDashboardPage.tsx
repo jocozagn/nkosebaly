@@ -79,7 +79,7 @@ const NkoDashboardPage = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         <div className="mb-8">
           <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: "var(--brand-brown)" }}>
-            Bienvenue sur {BRAND.name}
+            Bienvenue sur {BRAND.nameNko}
           </h1>
           <p className="text-sm md:text-base" style={{ color: "var(--brand-gray)" }}>
             Suivez votre progression et accédez à vos cours

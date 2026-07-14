@@ -57,7 +57,7 @@ const DATA_FILE_TMP = path.join(DATA_DIR, "store.json.tmp");
 const DATA_FILE_BACKUP = path.join(DATA_DIR, "store.backup.json");
 
 const defaultSettings: AdminSettings = {
-  app_name: "Karamoo Sêebaly",
+  app_name: "KARAMOO SEEBALI",
   contact_email: "diallomoussa2003@gmail.com",
   contact_phone: "+224622873308",
   commission_rate: 10,
@@ -2407,7 +2407,7 @@ export const initiateLicensePurchase = async (
     const link = await createDjomyPaymentLink({
       countryCode: "GN",
       amountToPay: amount,
-      linkName: `Licence Karamoo Sêebaly — ${duration} mois`,
+      linkName: `Licence KARAMOO SEEBALI — ${duration} mois`,
       description: `Accès plateforme N'ko — ${duration} mois`,
       merchantReference: orderId,
       returnUrl: `${djomyConfig.webUrl}/dashboard/activate-license/payment/return?order_id=${orderId}`,
@@ -2482,7 +2482,7 @@ export const initiateLicensePurchaseByDeviceId = async (
     const link = await createDjomyPaymentLink({
       countryCode: "GN",
       amountToPay: amount,
-      linkName: `Licence Karamoo Sêebaly — ${duration} mois`,
+      linkName: `Licence KARAMOO SEEBALI — ${duration} mois`,
       description: `Accès plateforme N'ko (mobile) — ${duration} mois`,
       merchantReference: orderId,
       returnUrl: `${djomyConfig.webUrl}/dashboard/activate-license/payment/return?order_id=${orderId}&source=mobile`,

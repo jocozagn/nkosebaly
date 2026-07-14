@@ -28,6 +28,7 @@ body {
   --brand-gray: #6B7280;
   --brand-gray-dark: #374151;
   --brand-bg: #FAF7F4;
+  --font-noto-nko: var(--font-noto-nko);
 
   --primary-color: var(--brand-brown);
   --secondary-color: var(--brand-black);
@@ -758,4 +759,9 @@ input[type=number]::-webkit-outer-spin-button {
 
 .ql-editor {
   min-height: 120px;
+}
+
+/** Texte en écriture N'ko */
+.font-nko {
+  font-family: var(--font-noto-nko), "Noto Sans NKo", sans-serif;
 }

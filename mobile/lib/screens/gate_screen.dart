@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:nkosebaly/config/app_settings.dart';
 import 'package:nkosebaly/screens/home_screen.dart';
 import 'package:nkosebaly/screens/license_scan_screen.dart';
 import 'package:nkosebaly/services/license_status_cache.dart';
 import 'package:nkosebaly/services/balandou_api.dart';
 import 'package:nkosebaly/services/device_service.dart';
 import 'package:nkosebaly/widgets/brand_logo.dart';
+import 'package:nkosebaly/widgets/brand_title.dart';
 
 class GateScreen extends StatefulWidget {
   const GateScreen({super.key});
@@ -55,10 +55,8 @@ class _GateScreenState extends State<GateScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const BrandLogo(size: 120),
-            const SizedBox(height: 24),
-            Text(AppSettings.appName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF7D4E2D))),
-            const SizedBox(height: 8),
-            Text(AppSettings.silycoreName, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            const SizedBox(height: 20),
+            const BrandTitle(showProfessor: true, showContact: true),
             const SizedBox(height: 24),
             const CircularProgressIndicator(color: Color(0xFF7D4E2D)),
           ],

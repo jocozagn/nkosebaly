@@ -1,17 +1,30 @@
 /**
- * Palette officielle Karamoo Sêebaly
- * Extraite du logo de la marque
+ * Identité officielle KARAMOO SEEBALI / ߞߊ߬ߙߊ߲߬ߡߐ߯ ߛߍ߰ߓߊߟߌ
  */
 export const BRAND = {
-  name: "Karamoo Sêebaly",
-  tagline: "Apprentissage du N'ko Mandingue",
+  /** Nom en écriture N'ko — affiché en premier */
+  nameNko: "ߞߊ߬ߙߊ߲߬ߡߐ߯ ߛߍ߰ߓߊߟߌ",
+  /** Nom latin officiel */
+  name: "KARAMOO SEEBALI",
+  /** Slogan en N'ko (remplace l'ancien slogan français) */
+  taglineNko: "ߞߊ߬ ߒߞߏ ߞߊ߬ߙߊ߲߬ ߟߊ߬ߝߙߍ ߘߐ߫",
+  /** Alias rétrocompat — même valeur que taglineNko */
+  tagline: "ߞߊ߬ ߒߞߏ ߞߊ߬ߙߊ߲߬ ߟߊ߬ߝߙߍ ߘߐ߫",
   logo: "/images/logo-balandou.png",
+
+  /** Professeur fondateur — N'ko + français */
+  professor: {
+    nko: "ߡߎߛߊ߫ ߓߊߟߊ߲ߘߎ߯ ߖߊߟߏ߫",
+    french: "Moussa Diallo Baldé",
+  },
 
   /** Coordonnées de contact officielles */
   contact: {
     email: "diallomoussa2003@gmail.com",
     phone: "+224622873308",
     phoneDisplay: "+224 622 87 33 08",
+    /** Numéro affiché en chiffres N'ko */
+    phoneDisplayNko: "ߜߝ: +߂߂߄ ߆߂߂ ߈߇ ߃߃ ߀߈",
   },
 
   /** Startup développeuse de la plateforme */

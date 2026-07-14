@@ -54,11 +54,16 @@ const NkoShell = ({ children, showNav = true }: NkoShellProps) => {
                 className="h-9 w-9 sm:h-11 sm:w-11 md:h-12 md:w-12 rounded-full object-cover ring-2 ring-[var(--brand-gold)] shrink-0"
                 priority
               />
-              <div className="min-w-0 block">
-                <span className="font-bold text-xs sm:text-sm md:text-base block tracking-wide uppercase truncate max-w-[140px] sm:max-w-none">
+              <div className="min-w-0 block text-white max-w-[160px] sm:max-w-[220px] md:max-w-none">
+                <p className="font-nko text-[11px] sm:text-xs md:text-sm font-semibold truncate leading-tight">
+                  {BRAND.nameNko}
+                </p>
+                <p className="text-[9px] sm:text-[10px] md:text-xs font-bold tracking-wide uppercase truncate">
                   {BRAND.name}
-                </span>
-                <span className="text-[10px] sm:text-xs text-white/70 truncate hidden sm:block">{BRAND.tagline}</span>
+                </p>
+                <p className="font-nko text-[9px] sm:text-[10px] text-white/75 truncate hidden sm:block leading-tight">
+                  {BRAND.taglineNko}
+                </p>
               </div>
             </Link>
 
@@ -101,7 +106,8 @@ const NkoShell = ({ children, showNav = true }: NkoShellProps) => {
                           height={40}
                           className="h-10 w-10 rounded-full object-cover ring-2 ring-[var(--brand-gold)]"
                         />
-                        <span className="text-sm font-bold uppercase">{BRAND.name}</span>
+                        <span className="font-nko text-sm font-semibold">{BRAND.nameNko}</span>
+                        <span className="text-xs font-bold uppercase">{BRAND.name}</span>
                       </SheetTitle>
                     </SheetHeader>
                     <nav className="flex flex-col p-3 gap-1">
@@ -141,16 +147,20 @@ const NkoShell = ({ children, showNav = true }: NkoShellProps) => {
 
       <footer className="text-white/80 py-5 mt-auto" style={{ backgroundColor: "var(--brand-brown-dark)" }}>
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 text-center text-sm space-y-2">
+          <div className="space-y-1">
+            <p className="font-nko text-sm text-white/90">{BRAND.professor.nko}</p>
+            <p className="text-xs text-white/70">{BRAND.professor.french}</p>
+          </div>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6">
             <a href={`mailto:${BRAND.contact.email}`} className="hover:text-white transition-colors break-all sm:break-normal text-xs sm:text-sm">
               {BRAND.contact.email}
             </a>
             <span className="hidden sm:inline text-white/40">·</span>
-            <a href={`tel:${BRAND.contact.phone}`} className="hover:text-white transition-colors text-xs sm:text-sm">
-              {BRAND.contact.phoneDisplay}
+            <a href={`tel:${BRAND.contact.phone}`} className="font-nko hover:text-white transition-colors text-xs sm:text-sm">
+              {BRAND.contact.phoneDisplayNko}
             </a>
           </div>
-          <p className="text-white/60 text-xs">© {new Date().getFullYear()} {BRAND.name}. Tous droits réservés.</p>
+          <p className="text-white/60 text-xs">© {new Date().getFullYear()} {BRAND.nameNko} · {BRAND.name}</p>
           <p className="text-white/40 text-[10px] px-2">
             Développé par {BRAND.silycore.name} · {BRAND.silycore.phoneDisplay}
           </p>

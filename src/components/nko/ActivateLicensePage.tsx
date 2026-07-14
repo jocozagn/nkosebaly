@@ -512,7 +512,7 @@ const ActivateLicensePage = () => {
           )}
 
           <p className="mt-6 text-xs text-center" style={{ color: "var(--brand-gray)" }}>
-            Besoin d&apos;aide ? Contactez {BRAND.contact.phoneDisplay}
+            Besoin d&apos;aide ? Contactez <span className="font-nko">{BRAND.contact.phoneDisplayNko}</span>
           </p>
         </div>
       </div>

@@ -113,11 +113,14 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
             />
           </div>
           <div className="min-w-0 leading-tight">
-            <p className="truncate text-[3.1mm] font-semibold" style={{ color: CARD.creme }}>
+            <p className="font-nko truncate text-[2.8mm] font-semibold" style={{ color: CARD.creme }}>
+              {BRAND.nameNko}
+            </p>
+            <p className="truncate text-[2mm] font-semibold uppercase tracking-[0.2mm]" style={{ color: CARD.orClair }}>
               {BRAND.name}
             </p>
-            <p className="text-[2.1mm]" style={{ color: CARD.or }}>
-              Licence d&apos;accès · N&apos;ko Mandingue
+            <p className="font-nko text-[1.9mm] leading-tight" style={{ color: CARD.or }}>
+              {BRAND.taglineNko}
             </p>
           </div>
         </div>
@@ -161,7 +164,7 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
   );
 
   const activationSteps = [
-    <>Ouvrez l&apos;app <strong className="font-semibold" style={{ color: CARD.creme }}>{BRAND.name}</strong></>,
+    <>Ouvrez l&apos;app <strong className="font-nko font-semibold" style={{ color: CARD.creme }}>{BRAND.nameNko}</strong></>,
     <>Menu → <strong className="font-semibold" style={{ color: CARD.creme }}>Activer ma carte</strong></>,
     <>Scannez ce QR code</>,
   ];
@@ -199,9 +202,9 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
       </div>
 
       <div className="flex flex-wrap justify-center gap-x-[4mm] gap-y-[0.5mm] px-[4.5mm] pb-[1mm]">
-        <span className="flex items-center gap-[1mm] text-[1.8mm]" style={{ color: CARD.cremeMat }}>
+        <span className="font-nko flex items-center gap-[1mm] text-[1.8mm]" style={{ color: CARD.cremeMat }}>
           <Phone className="h-[2.2mm] w-[2.2mm]" style={{ color: CARD.or }} aria-hidden />
-          {BRAND.contact.phoneDisplay}
+          {BRAND.contact.phoneDisplayNko}
         </span>
         <span className="flex items-center gap-[1mm] text-[1.8mm]" style={{ color: CARD.cremeMat }}>
           <Mail className="h-[2.2mm] w-[2.2mm]" style={{ color: CARD.or }} aria-hidden />
@@ -210,8 +213,8 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
       </div>
 
       <div className="py-[1.5mm] text-center" style={{ backgroundColor: CARD.bandeau }}>
-        <p className="text-[1.6mm] tracking-[0.2mm]" style={{ color: CARD.piedText }}>
-          {BRAND.tagline} · Développé par {BRAND.silycore.name}
+        <p className="font-nko text-[1.6mm] tracking-[0.2mm]" style={{ color: CARD.piedText }}>
+          {BRAND.taglineNko} · {BRAND.professor.nko}
         </p>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { StoreProvider } from "@/redux/store/StoreProvider";
 import type { Metadata } from "next";
-import { DM_Sans } from "next/font/google";
+import { DM_Sans, Noto_Sans_NKo } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
@@ -22,11 +22,18 @@ const dmSans = DM_Sans({
   display: "swap",
 });
 
+const notoSansNko = Noto_Sans_NKo({
+  subsets: ["nko"],
+  weight: ["400"],
+  variable: "--font-noto-nko",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: process.env.NEXT_PUBLIC_TITLE || `${BRAND.name} - ${BRAND.tagline}`,
+  title: process.env.NEXT_PUBLIC_TITLE || `${BRAND.nameNko} · ${BRAND.name}`,
   description:
     process.env.NEXT_PUBLIC_DESCRIPTION ||
-    `Plateforme d'apprentissage du N'ko Mandingue avec ${BRAND.name}.`,
+    `${BRAND.taglineNko} — ${BRAND.name}.`,
   keywords: process.env.NEXT_PUBLIC_KEYWORDS || `N'ko,Mandingue,${BRAND.name}`,
 };
 
@@ -50,7 +57,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${dmSans.variable} font-sans !pointer-events-auto`} suppressHydrationWarning>
+      <body className={`${dmSans.variable} ${notoSansNko.variable} font-sans !pointer-events-auto`} suppressHydrationWarning>
         <Suspense fallback={null}>
           <NavigationProgress />
         </Suspense>

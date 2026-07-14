@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Logo officiel Balandou Wourouki Digital (même visuel que la plateforme web).
+/// Logo officiel KARAMOO SEEBALI (même visuel que la plateforme web).
 class BrandLogo extends StatelessWidget {
   const BrandLogo({super.key, this.size = 96});
 
@@ -13,7 +13,7 @@ class BrandLogo extends StatelessWidget {
       width: size,
       height: size,
       fit: BoxFit.contain,
-      semanticLabel: 'Logo Balandou Wourouki Digital',
+      semanticLabel: 'Logo KARAMOO SEEBALI',
     );
   }
 }

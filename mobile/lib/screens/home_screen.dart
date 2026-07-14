@@ -249,7 +249,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppSettings.appName),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              AppSettings.nameNko,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              AppSettings.appName,
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
         backgroundColor: const Color(0xFF7D4E2D),
         foregroundColor: Colors.white,
         actions: [

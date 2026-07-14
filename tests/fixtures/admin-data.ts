@@ -69,7 +69,7 @@ export const buildMinimalAdminData = (): AdminData => ({
   notifications: [],
   license_orders: [],
   settings: {
-    app_name: "Karamoo Sebaly",
+    app_name: "KARAMOO SEEBALI",
     contact_email: "contact@silycor.xyz",
     contact_phone: "+224000000000",
     license_price: 150000,

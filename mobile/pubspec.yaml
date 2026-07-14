@@ -1,5 +1,5 @@
 name: nkosebaly
-description: Balandou Wourouki Digital — mobile SILYCORE (com.silycore.nkosebaly)
+description: KARAMOO SEEBALI — application mobile N'ko (com.silycore.nkosebaly)
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -31,7 +31,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
 
-# Icône launcher Android + iOS — logo officiel Karamoo Sêebaly
+# Icône launcher Android + iOS — logo officiel KARAMOO SEEBALI
 flutter_launcher_icons:
   android: true
   ios: true
