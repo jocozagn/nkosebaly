@@ -76,3 +76,20 @@ export const getDefaultLicensePlan = (settings: AdminSettings): PublicLicensePla
 /** Valide une durée pour génération de carte licence */
 export const isValidLicenseDurationMonths = (value: number): boolean =>
   Number.isInteger(value) && value >= 1 && value <= 24;
+
+/** Affichage prix GNF sur cartes / UI (ex. 150 000) */
+export const formatGnfAmount = (amount: number): string =>
+  new Intl.NumberFormat("fr-GN").format(amount);
+
+/**
+ * Prix à imprimer sur une carte PVC.
+ * Priorité : prix enregistré sur la carte, sinon grille par défaut selon la durée.
+ */
+export const resolveCardPriceGnf = (
+  durationMonths: number,
+  cardPriceGnf?: number
+): number | null => {
+  if (typeof cardPriceGnf === "number" && cardPriceGnf > 0) return cardPriceGnf;
+  const plan = DEFAULT_LICENSE_PLANS.find((p) => p.duration_months === durationMonths);
+  return plan?.price_gnf ?? null;
+};

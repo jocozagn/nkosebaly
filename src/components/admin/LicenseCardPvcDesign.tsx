@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { BRAND } from "@/constants/brand";
 import { buildLicenseQrPayload } from "@/lib/license/qr-payload";
+import { formatGnfAmount, resolveCardPriceGnf } from "@/lib/license/plans";
 import type { AdminLicenseCard, CardDurationMonths } from "@/lib/admin/types";
 
 /** Palette PVC premium (inspirée maquette CR80) */
@@ -38,7 +39,7 @@ const DURATION_LABELS: Record<CardDurationMonths, string> = {
 };
 
 interface LicenseCardPvcDesignProps {
-  card: Pick<AdminLicenseCard, "id" | "duration_months" | "activation_token">;
+  card: Pick<AdminLicenseCard, "id" | "duration_months" | "activation_token" | "card_price_gnf">;
   side?: "recto" | "verso" | "both";
   className?: string;
 }
@@ -58,6 +59,8 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
   const webBaseUrl = (process.env.NEXT_PUBLIC_WEB_URL ?? "https://silycor.xyz").replace(/\/$/, "");
   const shortHost = webBaseUrl.replace(/^https?:\/\//, "");
   const appDownloadUrl = `${webBaseUrl}/get-app`;
+  const priceGnf = resolveCardPriceGnf(card.duration_months, card.card_price_gnf);
+  const priceLabel = priceGnf != null ? `${formatGnfAmount(priceGnf)} GNF` : null;
 
   useEffect(() => {
     if (!card.activation_token) return;
@@ -124,12 +127,22 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
             </p>
           </div>
         </div>
-        <span
-          className="shrink-0 rounded-full px-[2.5mm] py-[1mm] text-[2.3mm] font-semibold whitespace-nowrap"
-          style={{ backgroundColor: CARD.bleu, color: CARD.bleuClair }}
-        >
-          {DURATION_LABELS[card.duration_months]}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-[0.6mm]">
+          <span
+            className="rounded-full px-[2.5mm] py-[1mm] text-[2.3mm] font-semibold whitespace-nowrap"
+            style={{ backgroundColor: CARD.bleu, color: CARD.bleuClair }}
+          >
+            {DURATION_LABELS[card.duration_months]}
+          </span>
+          {priceLabel && (
+            <span
+              className="rounded-full px-[2.5mm] py-[0.8mm] text-[2mm] font-bold whitespace-nowrap"
+              style={{ backgroundColor: CARD.or, color: CARD.brunFonce }}
+            >
+              {priceLabel}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Corps : QR app + liens */}
@@ -151,13 +164,16 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
         </div>
       </div>
 
-      {/* Pied recto */}
-      <div className="mt-[1.5mm] border-t pt-[1.5mm] text-center" style={{ borderColor: CARD.brunClair }}>
-        <p
-          className="text-[1.7mm] uppercase tracking-[0.3mm]"
-          style={{ color: CARD.piedText }}
-        >
-          Développé par {BRAND.silycore.name}
+      {/* Pied recto — contact professeur (N'ko + français) */}
+      <div className="mt-[1.5mm] border-t pt-[1.2mm] text-center leading-tight" style={{ borderColor: CARD.brunClair }}>
+        <p className="font-nko text-[1.7mm] font-medium" style={{ color: CARD.cremeMat }}>
+          {BRAND.contact.phoneDisplayNko}
+        </p>
+        <p className="text-[1.7mm] font-semibold" style={{ color: CARD.creme }}>
+          {BRAND.contact.phoneDisplay}
+        </p>
+        <p className="mt-[0.5mm] text-[1.5mm] uppercase tracking-[0.2mm]" style={{ color: CARD.piedText }}>
+          {BRAND.professor.french}
         </p>
       </div>
     </div>
@@ -174,10 +190,15 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
       className={`${cardShell} license-pvc-verso flex flex-col`}
       style={{ width: "85.6mm", height: "53.98mm", backgroundColor: CARD.brunFonce }}
     >
-      <div className="py-[2mm] text-center" style={{ backgroundColor: CARD.bandeau }}>
-        <p className="text-[2.4mm] font-semibold" style={{ color: CARD.orClair }}>
+      <div className="py-[1.8mm] text-center leading-tight" style={{ backgroundColor: CARD.bandeau }}>
+        <p className="text-[2.3mm] font-semibold" style={{ color: CARD.orClair }}>
           Activez votre licence
         </p>
+        {priceLabel && (
+          <p className="text-[2mm] font-bold" style={{ color: CARD.creme }}>
+            {priceLabel}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-1 items-center gap-[3.5mm] px-[4.5mm] py-[2.5mm]">
@@ -201,12 +222,19 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
         </ol>
       </div>
 
-      <div className="flex flex-wrap justify-center gap-x-[4mm] gap-y-[0.5mm] px-[4.5mm] pb-[1mm]">
-        <span className="font-nko flex items-center gap-[1mm] text-[1.8mm]" style={{ color: CARD.cremeMat }}>
-          <Phone className="h-[2.2mm] w-[2.2mm]" style={{ color: CARD.or }} aria-hidden />
-          {BRAND.contact.phoneDisplayNko}
-        </span>
-        <span className="flex items-center gap-[1mm] text-[1.8mm]" style={{ color: CARD.cremeMat }}>
+      <div className="flex flex-col items-center gap-[0.6mm] px-[4.5mm] pb-[1mm] text-center">
+        <div className="flex items-start justify-center gap-[1mm]">
+          <Phone className="mt-[0.2mm] h-[2.2mm] w-[2.2mm] shrink-0" style={{ color: CARD.or }} aria-hidden />
+          <div className="leading-tight">
+            <p className="font-nko text-[1.8mm]" style={{ color: CARD.cremeMat }}>
+              {BRAND.contact.phoneDisplayNko}
+            </p>
+            <p className="text-[1.8mm] font-semibold" style={{ color: CARD.creme }}>
+              {BRAND.contact.phoneDisplay}
+            </p>
+          </div>
+        </div>
+        <span className="flex items-center gap-[1mm] text-[1.7mm]" style={{ color: CARD.cremeMat }}>
           <Mail className="h-[2.2mm] w-[2.2mm]" style={{ color: CARD.or }} aria-hidden />
           {BRAND.contact.email}
         </span>
