@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Ref } from "react";
 import Image from "next/image";
 import QRCode from "qrcode";
 import {
@@ -42,18 +42,31 @@ interface LicenseCardPvcDesignProps {
   card: Pick<AdminLicenseCard, "id" | "duration_months" | "activation_token" | "card_price_gnf">;
   side?: "recto" | "verso" | "both";
   className?: string;
+  /** Ref sur l'élément carte CR80 (export PNG) */
+  cardRef?: Ref<HTMLDivElement>;
+  /** Rendu haute résolution — QR plus grands, sans ombre */
+  forExport?: boolean;
 }
 
 const cardShell =
-  "license-pvc-card relative overflow-hidden rounded-[3mm] shadow-lg text-[#f2e9d8]";
+  "license-pvc-card relative overflow-hidden rounded-[3mm] text-[#f2e9d8]";
 
 /**
  * Carte PVC CR80 — recto marque + QR app, verso QR licence (code caché).
  * Layout aligné sur la maquette Karamoo Sêebaly (85,6 × 53,98 mm).
  */
-const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCardPvcDesignProps) => {
+const LicenseCardPvcDesign = ({
+  card,
+  side = "both",
+  className = "",
+  cardRef,
+  forExport = false,
+}: LicenseCardPvcDesignProps) => {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [appQrDataUrl, setAppQrDataUrl] = useState("");
+
+  const qrPixelSize = forExport ? 512 : 220;
+  const cardShadow = forExport ? "shadow-none" : "shadow-lg";
 
   const qrPayload = buildLicenseQrPayload(card.id, card.activation_token ?? "");
   const webBaseUrl = (process.env.NEXT_PUBLIC_WEB_URL ?? "https://silycor.xyz").replace(/\/$/, "");
@@ -65,21 +78,21 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
   useEffect(() => {
     if (!card.activation_token) return;
     QRCode.toDataURL(qrPayload, {
-      width: 220,
+      width: qrPixelSize,
       margin: 1,
       errorCorrectionLevel: "M",
       color: { dark: CARD.brunFonce, light: "#FFFFFF" },
     }).then(setQrDataUrl);
-  }, [qrPayload, card.activation_token]);
+  }, [qrPayload, card.activation_token, qrPixelSize]);
 
   useEffect(() => {
     QRCode.toDataURL(appDownloadUrl, {
-      width: 220,
+      width: qrPixelSize,
       margin: 1,
       errorCorrectionLevel: "M",
       color: { dark: CARD.brunFonce, light: "#FFFFFF" },
     }).then(setAppQrDataUrl);
-  }, [appDownloadUrl]);
+  }, [appDownloadUrl, qrPixelSize]);
 
   const QrBox = ({ src, size = "18mm" }: { src: string; size?: string }) => (
     <div
@@ -97,7 +110,8 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
 
   const Recto = (
     <div
-      className={`${cardShell} license-pvc-recto flex flex-col`}
+      ref={side === "recto" || side === "both" ? cardRef : undefined}
+      className={`${cardShell} ${cardShadow} license-pvc-recto flex flex-col`}
       style={{ width: "85.6mm", height: "53.98mm", backgroundColor: CARD.brun, padding: "4mm 4.5mm" }}
     >
       {/* En-tête : logo + nom + badge durée */}
@@ -187,7 +201,8 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
 
   const Verso = (
     <div
-      className={`${cardShell} license-pvc-verso flex flex-col`}
+      ref={side === "verso" || side === "both" ? cardRef : undefined}
+      className={`${cardShell} ${cardShadow} license-pvc-verso flex flex-col`}
       style={{ width: "85.6mm", height: "53.98mm", backgroundColor: CARD.brunFonce }}
     >
       <div className="py-[1.8mm] text-center leading-tight" style={{ backgroundColor: CARD.bandeau }}>
@@ -248,8 +263,12 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
     </div>
   );
 
-  if (side === "recto") return <div className={className}>{Recto}</div>;
-  if (side === "verso") return <div className={className}>{Verso}</div>;
+  if (side === "recto") {
+    return forExport ? Recto : <div className={className}>{Recto}</div>;
+  }
+  if (side === "verso") {
+    return forExport ? Verso : <div className={className}>{Verso}</div>;
+  }
 
   return (
     <div className={`flex flex-col flex-wrap items-start gap-[30px] sm:flex-row ${className}`}>

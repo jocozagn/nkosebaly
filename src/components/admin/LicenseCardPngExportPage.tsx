@@ -10,6 +10,11 @@ import {
   buildCardPngFilename,
   buildCardsPngZip,
   captureCardElementPng,
+  CARD_PNG_DPI,
+  CARD_PNG_EXPORT_CONTAINER_STYLE,
+  CARD_PNG_EXPORT_STAGE_STYLE,
+  CARD_PNG_HEIGHT,
+  CARD_PNG_WIDTH,
   downloadBlob,
   downloadPngDataUrl,
   waitForCardQrRender,
@@ -168,7 +173,7 @@ const LicenseCardPngExportPage = () => {
             <strong>{selectedCards.length} carte(s)</strong> → {selectedCards.length * 2} fichiers PNG (recto + verso)
           </li>
           <li>Noms : <strong>NKO-0001-recto.png</strong>, <strong>NKO-0001-verso.png</strong>, etc.</li>
-          <li>Taille : 1011 × 638 px (85,6 × 54 mm @ 300 DPI)</li>
+          <li>Taille : <strong>{CARD_PNG_WIDTH} × {CARD_PNG_HEIGHT} px</strong> ({CARD_PNG_DPI} DPI, bord à bord)</li>
         </ul>
         {progress ? <p className="mt-2 text-xs font-medium" style={{ color: "var(--brand-brown)" }}>{progress}</p> : null}
       </div>
@@ -204,15 +209,29 @@ const LicenseCardPngExportPage = () => {
         ))}
       </div>
 
-      {/* Rendu hors écran pour capture PNG */}
-      <div className="pointer-events-none fixed left-[-9999px] top-0 opacity-0" aria-hidden>
+      {/* Rendu hors écran — conteneur = taille exacte CR80, sans marge */}
+      <div style={CARD_PNG_EXPORT_STAGE_STYLE} aria-hidden>
         {selectedCards.map((card) => (
           <div key={card.id}>
-            <div ref={(node) => { rectoRefs.current[card.id] = node; }}>
-              <LicenseCardPvcDesign card={card} side="recto" />
+            <div style={CARD_PNG_EXPORT_CONTAINER_STYLE}>
+              <LicenseCardPvcDesign
+                card={card}
+                side="recto"
+                forExport
+                cardRef={(node) => {
+                  rectoRefs.current[card.id] = node;
+                }}
+              />
             </div>
-            <div ref={(node) => { versoRefs.current[card.id] = node; }}>
-              <LicenseCardPvcDesign card={card} side="verso" />
+            <div style={CARD_PNG_EXPORT_CONTAINER_STYLE}>
+              <LicenseCardPvcDesign
+                card={card}
+                side="verso"
+                forExport
+                cardRef={(node) => {
+                  versoRefs.current[card.id] = node;
+                }}
+              />
             </div>
           </div>
         ))}

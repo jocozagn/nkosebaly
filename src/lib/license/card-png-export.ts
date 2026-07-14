@@ -1,9 +1,15 @@
-import { toPng } from "html-to-image";
+import { toCanvas } from "html-to-image";
 import JSZip from "jszip";
+import type { CSSProperties } from "react";
 
-/** CR80 @ 300 DPI — format attendu par les imprimeries PVC */
-export const CARD_PNG_WIDTH = 1011;
-export const CARD_PNG_HEIGHT = 638;
+/** CR80 (85,6 × 53,98 mm) */
+export const CARD_MM_WIDTH = 85.6;
+export const CARD_MM_HEIGHT = 53.98;
+
+/** 600 DPI — net à l'impression PVC (évite le flou au zoom) */
+export const CARD_PNG_DPI = 600;
+export const CARD_PNG_WIDTH = Math.round((CARD_MM_WIDTH / 25.4) * CARD_PNG_DPI);
+export const CARD_PNG_HEIGHT = Math.round((CARD_MM_HEIGHT / 25.4) * CARD_PNG_DPI);
 
 export type CardPngSide = "recto" | "verso";
 
@@ -13,15 +19,51 @@ export const buildCardPngFilename = (codeText: string, side: CardPngSide): strin
   return `${safeCode}-${side}.png`;
 };
 
-/** Capture un nœud DOM carte en PNG haute résolution */
-export const captureCardElementPng = async (element: HTMLElement): Promise<string> =>
-  toPng(element, {
-    width: CARD_PNG_WIDTH,
-    height: CARD_PNG_HEIGHT,
-    pixelRatio: 1,
-    cacheBust: true,
+const canvasToPngDataUrl = (canvas: HTMLCanvasElement): string => canvas.toDataURL("image/png");
+
+/** Recadre sur les dimensions exactes CR80 — aucune marge autour de la carte */
+const canvasToExactCardPng = (
+  source: HTMLCanvasElement,
+  width: number,
+  height: number
+): string => {
+  const output = document.createElement("canvas");
+  output.width = width;
+  output.height = height;
+  const ctx = output.getContext("2d");
+  if (!ctx) return source.toDataURL("image/png");
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source, 0, 0, width, height);
+  return canvasToPngDataUrl(output);
+};
+
+/** Capture uniquement l'élément `.license-pvc-card` — plein cadre, haute résolution */
+export const captureCardElementPng = async (cardElement: HTMLElement): Promise<string> => {
+  cardElement.style.boxShadow = "none";
+  cardElement.style.margin = "0";
+
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   });
 
+  const width = cardElement.offsetWidth;
+  const height = cardElement.offsetHeight;
+  if (width <= 0 || height <= 0) {
+    throw new Error("Carte non rendue — réessayez dans quelques secondes");
+  }
+
+  const pixelRatio = Math.max(CARD_PNG_WIDTH / width, CARD_PNG_HEIGHT / height);
+
+  const canvas = await toCanvas(cardElement, {
+    pixelRatio,
+    cacheBust: true,
+    backgroundColor: undefined,
+  });
+
+  return canvasToExactCardPng(canvas, CARD_PNG_WIDTH, CARD_PNG_HEIGHT);
+};
 /** Déclenche le téléchargement d'un PNG data URL */
 export const downloadPngDataUrl = (dataUrl: string, filename: string): void => {
   const link = document.createElement("a");
@@ -67,4 +109,24 @@ export const downloadBlob = (blob: Blob, filename: string): void => {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+};
+
+/** Style conteneur export — taille exacte CR80, sans espace autour */
+export const CARD_PNG_EXPORT_CONTAINER_STYLE: CSSProperties = {
+  width: `${CARD_MM_WIDTH}mm`,
+  height: `${CARD_MM_HEIGHT}mm`,
+  overflow: "hidden",
+  lineHeight: 0,
+  margin: 0,
+  padding: 0,
+};
+
+/** Conteneur hors écran pour rendu PNG (ne doit pas étirer la carte) */
+export const CARD_PNG_EXPORT_STAGE_STYLE: CSSProperties = {
+  position: "fixed",
+  left: 0,
+  top: 0,
+  opacity: 0,
+  pointerEvents: "none",
+  zIndex: -1,
 };

@@ -9,6 +9,8 @@ import BrandLoader from "@/components/ui/BrandLoader";
 import {
   buildCardPngFilename,
   captureCardElementPng,
+  CARD_PNG_EXPORT_CONTAINER_STYLE,
+  CARD_PNG_EXPORT_STAGE_STYLE,
   downloadPngDataUrl,
   waitForCardQrRender,
 } from "@/lib/license/card-png-export";
@@ -189,12 +191,12 @@ const LicenseCardPrintPage = () => {
         </div>
       </div>
 
-      <div className="pointer-events-none fixed left-[-9999px] top-0 opacity-0" aria-hidden>
-        <div ref={rectoRef}>
-          <LicenseCardPvcDesign card={card} side="recto" />
+      <div style={CARD_PNG_EXPORT_STAGE_STYLE} aria-hidden>
+        <div style={CARD_PNG_EXPORT_CONTAINER_STYLE}>
+          <LicenseCardPvcDesign card={card} side="recto" forExport cardRef={rectoRef} />
         </div>
-        <div ref={versoRef}>
-          <LicenseCardPvcDesign card={card} side="verso" />
+        <div style={CARD_PNG_EXPORT_CONTAINER_STYLE}>
+          <LicenseCardPvcDesign card={card} side="verso" forExport cardRef={versoRef} />
         </div>
       </div>
     </>
