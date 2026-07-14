@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CreditCard, Layers, Plus, Printer } from "lucide-react";
+import { CreditCard, Download, Layers, Plus, Printer } from "lucide-react";
 import { CARDS_PER_A4_PAGE } from "@/lib/license/a4-print-layout";
 import type { AdminCourse, AdminLicenseCard, CardDurationMonths } from "@/lib/admin/types";
 
@@ -112,6 +112,11 @@ const AdminCardsPage = () => {
   const batchPrintHref =
     selectedCardIds.length > 0
       ? `/admin/cards/print-batch?ids=${selectedCardIds.join(",")}`
+      : "";
+
+  const batchPngHref =
+    selectedCardIds.length > 0
+      ? `/admin/cards/export-png?ids=${selectedCardIds.join(",")}`
       : "";
 
   const allVisibleSelected =
@@ -295,14 +300,26 @@ const AdminCardsPage = () => {
           <p className="text-sm" style={{ color: "var(--brand-gray-dark)" }}>
             <strong>{lastGeneratedIds.length} carte(s)</strong> générée(s) — prêtes pour impression A4 bristol.
           </p>
-          <Link
-            href={`/admin/cards/print-batch?ids=${lastGeneratedIds.join(",")}`}
-            className="inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-semibold text-white"
-            style={{ backgroundColor: "var(--brand-brown)" }}
-          >
-            <Layers className="h-4 w-4" />
-            Imprimer ce lot A4
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/admin/cards/export-png?ids=${lastGeneratedIds.join(",")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded border border-[#e8ddd4] px-4 py-2 text-sm font-semibold"
+              style={{ color: "var(--brand-brown)" }}
+            >
+              <Download className="h-4 w-4" />
+              Exporter PNG
+            </Link>
+            <Link
+              href={`/admin/cards/print-batch?ids=${lastGeneratedIds.join(",")}`}
+              className="inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-semibold text-white"
+              style={{ backgroundColor: "var(--brand-brown)" }}
+            >
+              <Layers className="h-4 w-4" />
+              Imprimer ce lot A4
+            </Link>
+          </div>
         </div>
       )}
 
@@ -312,16 +329,28 @@ const AdminCardsPage = () => {
             {selectedCardIds.length} carte(s) sélectionnée(s) —{" "}
             {Math.ceil(selectedCardIds.length / CARDS_PER_A4_PAGE)} feuille(s) A4 recto + verso
           </p>
-          <Link
-            href={batchPrintHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-semibold text-white"
-            style={{ backgroundColor: "var(--brand-brown)" }}
-          >
-            <Layers className="h-4 w-4" />
-            Imprimer lot A4 ({selectedCardIds.length})
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={batchPngHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded border border-[#e8ddd4] px-4 py-2 text-sm font-semibold"
+              style={{ color: "var(--brand-brown)" }}
+            >
+              <Download className="h-4 w-4" />
+              Exporter PNG ({selectedCardIds.length * 2} fichiers)
+            </Link>
+            <Link
+              href={batchPrintHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-semibold text-white"
+              style={{ backgroundColor: "var(--brand-brown)" }}
+            >
+              <Layers className="h-4 w-4" />
+              Imprimer lot A4 ({selectedCardIds.length})
+            </Link>
+          </div>
         </div>
       )}
 

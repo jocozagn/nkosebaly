@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Download, Printer } from "lucide-react";
 import LicenseCardPvcDesign from "@/components/admin/LicenseCardPvcDesign";
 import BrandLoader from "@/components/ui/BrandLoader";
+import {
+  buildCardPngFilename,
+  captureCardElementPng,
+  downloadPngDataUrl,
+  waitForCardQrRender,
+} from "@/lib/license/card-png-export";
 import type { AdminLicenseCard } from "@/lib/admin/types";
 
 /** Page d'aperçu et impression carte PVC */
@@ -14,6 +20,10 @@ const LicenseCardPrintPage = () => {
   const cardId = searchParams.get("id");
   const [card, setCard] = useState<AdminLicenseCard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPngReady, setIsPngReady] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const rectoRef = useRef<HTMLDivElement | null>(null);
+  const versoRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!cardId) {
@@ -31,8 +41,38 @@ const LicenseCardPrintPage = () => {
       });
   }, [cardId]);
 
+  useEffect(() => {
+    if (!card) {
+      setIsPngReady(false);
+      return;
+    }
+
+    setIsPngReady(false);
+    let cancelled = false;
+    waitForCardQrRender().then(() => {
+      if (!cancelled) setIsPngReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [card]);
+
   const handlePrint = (): void => {
     window.print();
+  };
+
+  const handleDownloadPng = async (side: "recto" | "verso"): Promise<void> => {
+    if (!card || !isPngReady) return;
+    const element = side === "recto" ? rectoRef.current : versoRef.current;
+    if (!element) return;
+
+    setIsExporting(true);
+    try {
+      const png = await captureCardElementPng(element);
+      downloadPngDataUrl(png, buildCardPngFilename(card.code_text, side));
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (isLoading) {
@@ -96,14 +136,34 @@ const LicenseCardPrintPage = () => {
         <Link href="/admin/cards" className="inline-flex items-center gap-2 text-sm" style={{ color: "var(--brand-brown)" }}>
           <ArrowLeft className="w-4 h-4" /> Retour
         </Link>
-        <button
-          type="button"
-          onClick={handlePrint}
-          className="inline-flex items-center gap-2 px-5 py-2.5 text-white text-sm font-semibold rounded"
-          style={{ backgroundColor: "var(--brand-brown)" }}
-        >
-          <Printer className="w-4 h-4" /> Imprimer (PVC CR80)
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => handleDownloadPng("recto")}
+            disabled={!isPngReady || isExporting}
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded border border-[#e8ddd4] disabled:opacity-50"
+            style={{ color: "var(--brand-brown)" }}
+          >
+            <Download className="w-4 h-4" /> PNG recto
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDownloadPng("verso")}
+            disabled={!isPngReady || isExporting}
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded border border-[#e8ddd4] disabled:opacity-50"
+            style={{ color: "var(--brand-brown)" }}
+          >
+            <Download className="w-4 h-4" /> PNG verso
+          </button>
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-white text-sm font-semibold rounded"
+            style={{ backgroundColor: "var(--brand-brown)" }}
+          >
+            <Printer className="w-4 h-4" /> Imprimer (PVC CR80)
+          </button>
+        </div>
       </div>
 
       <div className="mb-6 p-4 rounded-lg border border-[#e8ddd4] text-sm" style={{ backgroundColor: "var(--brand-bg)", color: "var(--brand-gray)" }}>
@@ -126,6 +186,15 @@ const LicenseCardPrintPage = () => {
         </div>
         <div className="print:hidden">
           <LicenseCardPvcDesign card={card} side="both" />
+        </div>
+      </div>
+
+      <div className="pointer-events-none fixed left-[-9999px] top-0 opacity-0" aria-hidden>
+        <div ref={rectoRef}>
+          <LicenseCardPvcDesign card={card} side="recto" />
+        </div>
+        <div ref={versoRef}>
+          <LicenseCardPvcDesign card={card} side="verso" />
         </div>
       </div>
     </>
