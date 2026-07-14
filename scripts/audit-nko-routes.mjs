@@ -11,6 +11,7 @@ const required = [
   "src/app/api/webhooks/djomy/route.ts",
   "src/app/api/mobile/certificates/route.ts",
   "src/app/api/mobile/certificates/pay/route.ts",
+  "src/app/api/mobile/certificates/payment/verify/route.ts",
   "src/app/api/mobile/profile/route.ts",
   "src/app/api/certificates/pay/route.ts",
   "src/app/get-app/route.ts",

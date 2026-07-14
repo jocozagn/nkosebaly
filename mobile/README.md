@@ -65,7 +65,7 @@ Sur iOS, l’ID appareil est un **UUID persistant** (Keychain), distinct d’And
 
 - Activation licence PVC (QR)
 - Cours, leçons, quiz, offline vidéo chiffré
-- Certificats + paiement Djomy (navigateur)
+- Certificats + paiement Djomy (WebView in-app)
 - Profil éditable
 - Connexion web par QR
 

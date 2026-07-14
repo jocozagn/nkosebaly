@@ -5,9 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:nkosebaly/screens/license_scan_screen.dart';
+import 'package:nkosebaly/models/djomy_payment_result.dart';
+import 'package:nkosebaly/screens/djomy_payment_screen.dart';
 import 'package:nkosebaly/services/balandou_api.dart';
 import 'package:nkosebaly/services/device_service.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class CertificatesScreen extends StatefulWidget {
   const CertificatesScreen({super.key});
@@ -134,14 +135,50 @@ class _CertificatesScreenState extends State<CertificatesScreen> {
       }
 
       final paymentUrl = res['data']?['paymentUrl']?.toString();
+      final certificateId = res['data']?['certificateId']?.toString();
       if (paymentUrl == null || paymentUrl.isEmpty) {
         throw Exception('Lien de paiement indisponible');
       }
+      if (certificateId == null || certificateId.isEmpty) {
+        throw Exception('Identifiant certificat manquant');
+      }
 
-      final uri = Uri.parse(paymentUrl);
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!launched) {
-        throw Exception('Impossible d\'ouvrir le navigateur de paiement');
+      if (!mounted) return;
+
+      final result = await Navigator.of(context).push<DjomyPaymentResult>(
+        MaterialPageRoute(
+          builder: (_) => DjomyPaymentScreen(
+            paymentUrl: paymentUrl,
+            certificateId: certificateId,
+            title: 'Paiement certificat',
+          ),
+        ),
+      );
+
+      if (!mounted) return;
+
+      switch (result) {
+        case DjomyPaymentResult.success:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Paiement confirmé — certificat délivré')),
+          );
+          await _load();
+        case DjomyPaymentResult.pending:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Paiement en cours de confirmation. Rafraîchissez dans quelques instants.'),
+            ),
+          );
+          await _load();
+        case DjomyPaymentResult.cancelled:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Paiement annulé')),
+          );
+        case DjomyPaymentResult.failed:
+        case null:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Impossible de confirmer le paiement')),
+          );
       }
     } catch (e) {
       if (!mounted) return;
@@ -317,7 +354,7 @@ class _CertificatesScreenState extends State<CertificatesScreen> {
                                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                             )
                                           : const Icon(Icons.payment),
-                                      label: Text(_paying ? 'Ouverture...' : 'Reprendre le paiement'),
+                                      label: Text(_paying ? 'Paiement...' : 'Reprendre le paiement'),
                                       style: FilledButton.styleFrom(backgroundColor: const Color(0xFF7D4E2D)),
                                     ),
                                   ],
@@ -377,7 +414,7 @@ class _CertificatesScreenState extends State<CertificatesScreen> {
                                       : const Icon(Icons.payment),
                                   label: Text(
                                     _paying
-                                        ? 'Ouverture...'
+                                        ? 'Paiement...'
                                         : _certificatePrice > 0
                                             ? 'Payer ${_formatGnf(_certificatePrice)} GNF'
                                             : 'Payer le certificat',
