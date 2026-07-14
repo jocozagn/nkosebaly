@@ -6,11 +6,12 @@ export const GET = async (req: NextRequest): Promise<NextResponse> => {
   const mobileToken = req.headers.get("x-mobile-token")?.trim();
   if (mobileToken) {
     const license = await getActiveLicenseByMobileToken(mobileToken);
-    if (!license) return NextResponse.json({ error: false, data: { active: false } });
+    if (!license) return NextResponse.json({ error: false, data: { active: false, mobile_session_valid: false } });
     return NextResponse.json({
       error: false,
       data: {
         active: true,
+        mobile_session_valid: true,
         expires_at: license.card.expires_at,
         duration_months: license.card.duration_months,
         user_name: license.user?.name ?? "",
@@ -33,6 +34,7 @@ export const GET = async (req: NextRequest): Promise<NextResponse> => {
     error: false,
     data: {
       active: true,
+      mobile_session_valid: false,
       expires_at: license.card.expires_at,
       duration_months: license.card.duration_months,
       user_name: license.user?.name ?? "",

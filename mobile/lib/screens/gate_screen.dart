@@ -5,6 +5,7 @@ import 'package:nkosebaly/screens/license_scan_screen.dart';
 import 'package:nkosebaly/services/license_status_cache.dart';
 import 'package:nkosebaly/services/balandou_api.dart';
 import 'package:nkosebaly/services/device_service.dart';
+import 'package:nkosebaly/services/mobile_session_guard.dart';
 import 'package:nkosebaly/widgets/brand_logo.dart';
 import 'package:nkosebaly/widgets/brand_title.dart';
 
@@ -29,6 +30,11 @@ class _GateScreenState extends State<GateScreen> {
       final active = res['data']?['active'] == true;
       if (!mounted) return;
       if (active) {
+        final hasSession = await MobileSessionGuard.ensureMobileSession();
+        if (!hasSession) {
+          await Get.offAll(() => const LicenseScanScreen());
+          return;
+        }
         await LicenseStatusCache.save(res['data'] as Map<String, dynamic>, deviceId: deviceId);
         await Get.offAll(() => const HomeScreen());
       } else {
@@ -39,7 +45,12 @@ class _GateScreenState extends State<GateScreen> {
       final cached = await LicenseStatusCache.read(deviceId: deviceId);
       if (!mounted) return;
       if (cached != null && LicenseStatusCache.isActive(cached)) {
-        await Get.offAll(() => const HomeScreen());
+        final hasSession = await MobileSessionGuard.ensureMobileSession();
+        if (hasSession) {
+          await Get.offAll(() => const HomeScreen());
+        } else {
+          await Get.offAll(() => const LicenseScanScreen());
+        }
       } else {
         await Get.offAll(() => const LicenseScanScreen());
       }

@@ -12,6 +12,7 @@ import 'package:nkosebaly/services/license_status_cache.dart';
 import 'package:nkosebaly/services/progress_sync_queue.dart';
 import 'package:nkosebaly/services/secure_video_vault.dart';
 import 'package:nkosebaly/services/device_service.dart';
+import 'package:nkosebaly/services/mobile_session_guard.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -72,6 +73,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
       licenseData = status['data'] as Map<String, dynamic>? ?? {};
       await LicenseStatusCache.save(licenseData, deviceId: deviceId);
+
+      // Après réinstall : licence OK via device_id mais token local absent.
+      final hasSession = await MobileSessionGuard.ensureMobileSession();
+      if (!hasSession) {
+        await Get.offAll(() => const LicenseScanScreen());
+        return;
+      }
     } catch (_) {
       final cached = await LicenseStatusCache.read(deviceId: deviceId);
       if (cached == null || !LicenseStatusCache.isActive(cached)) {
@@ -339,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       child: Padding(
                         padding: EdgeInsets.all(32),
                         child: Text(
-                          'Aucun cours disponible.\nConnectez-vous une fois pour synchroniser.',
+                          'Aucun cours disponible.\nRéactivez votre carte (onglet QR code) ou tirez pour actualiser.',
                           textAlign: TextAlign.center,
                         ),
                       ),
