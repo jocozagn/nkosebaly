@@ -173,7 +173,7 @@ const LicenseCardPvcDesign = ({ card, side = "both", className = "" }: LicenseCa
           {BRAND.contact.phoneDisplay}
         </p>
         <p className="mt-[0.5mm] text-[1.5mm] uppercase tracking-[0.2mm]" style={{ color: CARD.piedText }}>
-          {BRAND.professor.french}
+          Moussa Balandou Diallo
         </p>
       </div>
     </div>
