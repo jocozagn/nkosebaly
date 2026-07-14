@@ -78,3 +78,9 @@ gradle.taskGraph.whenReady {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Requis par mobile_scanner / plugins AndroidX en build release
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
+}

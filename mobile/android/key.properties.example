@@ -6,4 +6,4 @@
 storePassword=VOTRE_MOT_DE_PASSE
 keyPassword=VOTRE_MOT_DE_PASSE
 keyAlias=nkosebaly
-storeFile=upload-keystore.jks
+storeFile=../upload-keystore.jks

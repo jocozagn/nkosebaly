@@ -24,6 +24,15 @@ sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'"
 
 sudo -u postgres psql -d "${DB_NAME}" -f "${APP_DIR}/scripts/postgres/schema.sql"
 
+# Droits complets pour l'utilisateur applicatif (INSERT/UPDATE sur app_data)
+sudo -u postgres psql -d "${DB_NAME}" -v ON_ERROR_STOP=1 <<EOSQL
+ALTER TABLE IF EXISTS app_data OWNER TO ${DB_USER};
+ALTER TABLE IF EXISTS web_sessions OWNER TO ${DB_USER};
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${DB_USER};
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${DB_USER};
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${DB_USER};
+EOSQL
+
 export DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@127.0.0.1:5432/${DB_NAME}"
 cd "${APP_DIR}"
 node scripts/migrate-json-to-postgres.mjs
