@@ -62,7 +62,7 @@ const defaultSettings: AdminSettings = {
   contact_phone: "+224622873308",
   commission_rate: 10,
   instructor_auto_approve: false,
-  license_price: 150000,
+  license_price: 120000,
   license_duration_months: 3,
   license_plans: DEFAULT_LICENSE_PLANS,
   certificate_price: 50000,

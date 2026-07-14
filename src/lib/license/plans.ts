@@ -3,10 +3,10 @@ import type { AdminSettings, LicensePlan } from "@/lib/admin/types";
 /** Formules licence en ligne par défaut (modifiables dans l'admin) */
 export const DEFAULT_LICENSE_PLANS: LicensePlan[] = [
   { id: "plan-1m", duration_months: 1, price_gnf: 50_000, active: true },
-  { id: "plan-2m", duration_months: 2, price_gnf: 90_000, active: true },
-  { id: "plan-3m", duration_months: 3, price_gnf: 150_000, active: true },
-  { id: "plan-6m", duration_months: 6, price_gnf: 250_000, active: true },
-  { id: "plan-12m", duration_months: 12, price_gnf: 450_000, active: true },
+  { id: "plan-2m", duration_months: 2, price_gnf: 80_000, active: true },
+  { id: "plan-3m", duration_months: 3, price_gnf: 120_000, active: true },
+  { id: "plan-6m", duration_months: 6, price_gnf: 170_000, active: true },
+  { id: "plan-12m", duration_months: 12, price_gnf: 300_000, active: true },
 ];
 
 export interface PublicLicensePlan {
@@ -41,7 +41,7 @@ export const normalizeLicensePlans = (settings: AdminSettings): LicensePlan[] =>
     {
       id: "plan-legacy",
       duration_months: settings.license_duration_months ?? 3,
-      price_gnf: settings.license_price ?? 150_000,
+      price_gnf: settings.license_price ?? 120_000,
       active: true,
     },
   ];
