@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BRAND } from "@/constants/brand";
 
@@ -34,6 +34,13 @@ const ProtectedVideoPlayer = ({
   const hasCompletedRef = useRef(false);
   const hasRecordedOpenRef = useRef(false);
   const hasNotifiedCompletionRef = useRef(false);
+  const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
+
+  const handleLoadedMetadata = useCallback((): void => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) return;
+    setAspectRatio(video.videoWidth / video.videoHeight);
+  }, []);
 
   const notifyLessonCompleted = useCallback((): void => {
     if (hasNotifiedCompletionRef.current) return;
@@ -139,13 +146,17 @@ const ProtectedVideoPlayer = ({
 
   return (
     <div
-      className="relative w-full aspect-video bg-black rounded-lg overflow-hidden select-none"
+      className="relative w-full mx-auto bg-black rounded-lg overflow-hidden select-none max-h-[min(85dvh,920px)]"
       onContextMenu={handleBlockContextMenu}
-      style={{ WebkitUserSelect: "none", userSelect: "none" }}
+      style={{
+        WebkitUserSelect: "none",
+        userSelect: "none",
+        aspectRatio: `${aspectRatio}`,
+      }}
     >
       <video
         ref={videoRef}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-contain bg-black"
         controls
         controlsList="nodownload noremoteplayback noplaybackrate"
         disablePictureInPicture
@@ -153,6 +164,7 @@ const ProtectedVideoPlayer = ({
         preload="metadata"
         aria-label={title}
         onDragStart={(e) => e.preventDefault()}
+        onLoadedMetadata={handleLoadedMetadata}
       >
         <source src={streamUrl} type="video/mp4" />
         Votre navigateur ne supporte pas la lecture vidéo.
@@ -167,7 +179,7 @@ const ProtectedVideoPlayer = ({
         </span>
       </div>
       <div className="pointer-events-none absolute top-3 left-3 text-[10px] text-white/30 font-medium">{watermark}</div>
-      <div className="pointer-events-none absolute bottom-12 right-3 text-[10px] text-white/30 font-medium">
+      <div className="pointer-events-none absolute top-3 right-3 text-[10px] text-white/30 font-medium">
         {new Date().getFullYear()} · {BRAND.nameNko}
       </div>
     </div>

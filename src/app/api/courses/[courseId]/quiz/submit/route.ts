@@ -12,7 +12,7 @@ export const POST = async (
 
   const { courseId } = await params;
   const body = (await req.json().catch(() => ({}))) as {
-    answers?: { question_id: string; selected: number }[];
+    answers?: import("@/lib/admin/types").StudentLessonQuizAnswerPayload[];
   };
 
   if (!Array.isArray(body.answers) || body.answers.length === 0) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStudentQuizQuestions, getStudentQuizStateByDeviceId } from "@/lib/admin/store";
 import { requireMobileDevice } from "@/lib/mobile/require-device";
+import { getRequestBaseUrl } from "@/lib/mobile/request-base-url";
 
 /**
  * Mobile: état du quiz + questions (sans bonnes réponses).
@@ -20,7 +21,15 @@ export const GET = async (
     return NextResponse.json({ error: true, message: "Cours introuvable" }, { status: 404 });
   }
 
-  const questions = state.can_attempt ? await getStudentQuizQuestions(courseId) : [];
+  const webUrl = getRequestBaseUrl(req);
+  const mobileToken = req.headers.get("x-mobile-token")?.trim();
+  const tokenQuery = mobileToken ? `&mobile_token=${encodeURIComponent(mobileToken)}` : "";
+
+  const questions = state.can_attempt
+    ? await getStudentQuizQuestions(courseId, (file) =>
+        `${webUrl}/api/quiz-media/${file.file_id}?mime=${encodeURIComponent(file.mime_type)}${tokenQuery}`
+      )
+    : [];
 
   return NextResponse.json({
     error: false,
@@ -30,4 +39,3 @@ export const GET = async (
     },
   });
 };
-

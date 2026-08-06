@@ -29,12 +29,15 @@ export const GET = async (
   const user = await getStudentUserByAuthToken(licenseCheck.authToken);
   const data = await readAdminData();
   const bestAttempt = user ? getBestLessonQuizAttempt(data, user.id, lessonId) : undefined;
+  const settings = data.settings;
 
   return NextResponse.json({
     error: false,
     data: {
       items,
       count: items.length,
+      time_limit_seconds: settings.lesson_quiz_time_limit_seconds ?? 15,
+      pass_percent: settings.lesson_quiz_pass_percent ?? 70,
       previous_attempt: bestAttempt
         ? {
             score: bestAttempt.score,

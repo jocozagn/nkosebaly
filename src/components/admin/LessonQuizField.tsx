@@ -40,6 +40,7 @@ const LessonQuizField = ({ lessonId, courseId, lessonTitle, items, onChanged }: 
   const [sentenceTemplate, setSentenceTemplate] = useState("Je ___ à l'école.");
   const [suggestions, setSuggestions] = useState<string[]>(["", "", ""]);
   const [correctWord, setCorrectWord] = useState("");
+  const [timeLimitSeconds, setTimeLimitSeconds] = useState<number | "">("");
 
   const resetForm = (): void => {
     setPromptText("");
@@ -53,6 +54,7 @@ const LessonQuizField = ({ lessonId, courseId, lessonTitle, items, onChanged }: 
     setSentenceTemplate("Je ___ à l'école.");
     setSuggestions(["", "", ""]);
     setCorrectWord("");
+    setTimeLimitSeconds("");
   };
 
   const handleQuizTypeChange = (nextType: LessonQuizType): void => {
@@ -125,6 +127,10 @@ const LessonQuizField = ({ lessonId, courseId, lessonTitle, items, onChanged }: 
         type: quizType,
         prompt_text: promptText,
       };
+
+      if (timeLimitSeconds !== "" && timeLimitSeconds > 0) {
+        payload.time_limit_seconds = timeLimitSeconds;
+      }
 
       if (quizType === "single_choice") {
         payload.options = options.filter(Boolean);
@@ -248,6 +254,16 @@ const LessonQuizField = ({ lessonId, courseId, lessonTitle, items, onChanged }: 
             value={promptText}
             onChange={(e) => setPromptText(e.target.value)}
             placeholder="Consigne affichée à l'élève"
+            className="w-full px-2 py-1.5 border border-[#e8ddd4] rounded"
+          />
+
+          <input
+            type="number"
+            min={5}
+            max={300}
+            value={timeLimitSeconds}
+            onChange={(e) => setTimeLimitSeconds(e.target.value === "" ? "" : Number(e.target.value))}
+            placeholder="Minuteur (sec) — vide = réglage global"
             className="w-full px-2 py-1.5 border border-[#e8ddd4] rounded"
           />
 

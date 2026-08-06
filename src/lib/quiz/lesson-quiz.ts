@@ -66,6 +66,7 @@ export const stripLessonQuizItemForStudent = (
     type: item.type,
     order: item.order,
     prompt_text: item.prompt_text ?? "",
+    time_limit_seconds: item.time_limit_seconds,
   };
 
   switch (item.type) {

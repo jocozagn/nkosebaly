@@ -1,8 +1,8 @@
 import type { AdminSettings } from "@/lib/admin/types";
 
 /** Version mobile par défaut — alignée sur mobile/pubspec.yaml (1.0.0+1) */
-export const DEFAULT_MOBILE_APP_VERSION = "1.0.1";
-export const DEFAULT_MOBILE_APP_BUILD = 2;
+export const DEFAULT_MOBILE_APP_VERSION = "1.0.2";
+export const DEFAULT_MOBILE_APP_BUILD = 3;
 
 export interface MobileAppVersionInfo {
   version: string;

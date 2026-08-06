@@ -22,6 +22,29 @@ export const isLessonCompleted = (data: AdminData, userId: string, lessonId: str
     (p) => p.user_id === userId && p.lesson_id === lessonId && p.completed
   );
 
+/** Une leçon possède au moins un exercice actif */
+export const lessonHasActiveQuiz = (
+  data: AdminData,
+  courseId: string,
+  lessonId: string
+): boolean =>
+  data.lesson_quiz_items.some(
+    (q) => q.lesson_id === lessonId && q.course_id === courseId && q.active
+  );
+
+/** Exercice de leçon réussi (ou aucun exercice) */
+export const isLessonQuizPassed = (
+  data: AdminData,
+  userId: string,
+  lessonId: string,
+  courseId: string
+): boolean => {
+  if (!lessonHasActiveQuiz(data, courseId, lessonId)) return true;
+  return data.lesson_quiz_attempts.some(
+    (a) => a.user_id === userId && a.lesson_id === lessonId && a.passed
+  );
+};
+
 /** Détermine si l'élève peut accéder à une leçon */
 export const isLessonUnlocked = (
   data: AdminData,
@@ -38,7 +61,9 @@ export const isLessonUnlocked = (
   if (index === 0) return true;
 
   for (let i = 0; i < index; i++) {
-    if (!isLessonCompleted(data, userId, ordered[i].id)) return false;
+    const prev = ordered[i];
+    if (!isLessonCompleted(data, userId, prev.id)) return false;
+    if (!isLessonQuizPassed(data, userId, prev.id, courseId)) return false;
   }
   return true;
 };

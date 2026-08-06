@@ -46,7 +46,6 @@ interface QuizMeta {
   passed: boolean;
 }
 
-/** Page de lecture vidéo — quiz ouvrable après la leçon ou via bouton Exercice */
 const LessonPlaybackPage = ({ courseId, lessonId }: LessonPlaybackPageProps) => {
   const [data, setData] = useState<PlaybackData | null>(null);
   const [error, setError] = useState("");
@@ -55,7 +54,7 @@ const LessonPlaybackPage = ({ courseId, lessonId }: LessonPlaybackPageProps) => 
   const [quizOpen, setQuizOpen] = useState(false);
   const [videoCompleted, setVideoCompleted] = useState(false);
   const [quizMeta, setQuizMeta] = useState<QuizMeta | null>(null);
-  const quizSectionRef = useRef<HTMLDivElement>(null);
+  const [quizPassed, setQuizPassed] = useState(false);
   const pendingQuizOpenRef = useRef(false);
 
   useEffect(() => {
@@ -77,9 +76,6 @@ const LessonPlaybackPage = ({ courseId, lessonId }: LessonPlaybackPageProps) => 
 
   const handleOpenQuiz = useCallback((): void => {
     setQuizOpen(true);
-    setTimeout(() => {
-      quizSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
   }, []);
 
   const handleLessonCompleted = useCallback((): void => {
@@ -88,27 +84,27 @@ const LessonPlaybackPage = ({ courseId, lessonId }: LessonPlaybackPageProps) => 
     if (hasQuiz) {
       setQuizOpen(true);
       pendingQuizOpenRef.current = false;
-      setTimeout(() => {
-        quizSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 300);
     }
   }, [hasQuiz]);
 
   const handleHasQuiz = useCallback((exists: boolean, previous: QuizMeta | null): void => {
     setHasQuiz(exists);
-    if (previous) setQuizMeta(previous);
+    if (previous) {
+      setQuizMeta(previous);
+      setQuizPassed(previous.passed);
+    }
     if (exists && pendingQuizOpenRef.current) {
       pendingQuizOpenRef.current = false;
       setQuizOpen(true);
-      setTimeout(() => {
-        quizSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 300);
     }
   }, []);
 
   const handleQuizSubmitted = useCallback((result: QuizMeta): void => {
     setQuizMeta(result);
+    setQuizPassed(result.passed);
   }, []);
+
+  const quizBlocking = hasQuiz && videoCompleted && !quizPassed;
 
   return (
     <NkoShell>
@@ -124,7 +120,7 @@ const LessonPlaybackPage = ({ courseId, lessonId }: LessonPlaybackPageProps) => 
         {isLoading ? (
           <BrandLoader variant="inline" message="Préparation de la vidéo..." />
         ) : error || !data ? (
-          <div className="bg-white rounded-lg border border-[#e8ddd4] p-8 text-center">
+          <div className="bg-white rounded-lg border border-[var(--border-color)] p-8 text-center">
             <p className="text-sm" style={{ color: "var(--brand-gray)" }}>{error || "Vidéo indisponible"}</p>
           </div>
         ) : (
@@ -142,9 +138,14 @@ const LessonPlaybackPage = ({ courseId, lessonId }: LessonPlaybackPageProps) => 
               onLessonCompleted={handleLessonCompleted}
             />
 
-            {/* Bouton Exercice — visible si la leçon a un quiz et que le panneau est fermé */}
+            {quizBlocking && (
+              <div className="rounded-lg p-4 bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+                Leçon terminée — vous devez réussir l&apos;exercice pour débloquer la suite du cours.
+              </div>
+            )}
+
             {hasQuiz && !quizOpen && (
-              <div className="bg-white rounded-lg border border-[#e8ddd4] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="bg-white rounded-lg border border-[var(--border-color)] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <ClipboardList className="w-5 h-5 flex-shrink-0" style={{ color: "var(--brand-brown)" }} />
                   <div>
@@ -152,9 +153,11 @@ const LessonPlaybackPage = ({ courseId, lessonId }: LessonPlaybackPageProps) => 
                       Exercice
                     </p>
                     <p className="text-xs" style={{ color: "var(--brand-gray)" }}>
-                      {videoCompleted
-                        ? "Leçon terminée — passez le quiz pour valider vos acquis"
-                        : "Quiz disponible — vous pouvez le faire maintenant ou après la vidéo"}
+                      {quizPassed
+                        ? "Exercice réussi ✓ — vous pouvez continuer"
+                        : videoCompleted
+                          ? "Passez le quiz pour continuer le cours"
+                          : "Quiz disponible — vous pouvez le faire maintenant ou après la vidéo"}
                       {quizMeta ? ` · Dernier score : ${quizMeta.score}/${quizMeta.total}` : ""}
                     </p>
                   </div>
@@ -166,20 +169,20 @@ const LessonPlaybackPage = ({ courseId, lessonId }: LessonPlaybackPageProps) => 
                   style={{ backgroundColor: "var(--brand-brown)" }}
                   aria-label="Ouvrir l'exercice quiz"
                 >
-                  {quizMeta ? "Refaire l'exercice" : "Faire l'exercice"}
+                  {quizPassed ? "Refaire l'exercice" : "Faire l'exercice"}
                 </button>
               </div>
             )}
 
-            <div ref={quizSectionRef}>
-              <LessonQuizPanel
-                courseId={courseId}
-                lessonId={lessonId}
-                isOpen={quizOpen}
-                onHasQuiz={handleHasQuiz}
-                onSubmitted={handleQuizSubmitted}
-              />
-            </div>
+            <LessonQuizPanel
+              courseId={courseId}
+              lessonId={lessonId}
+              isOpen={quizOpen}
+              blocking={quizBlocking}
+              onOpenChange={setQuizOpen}
+              onHasQuiz={handleHasQuiz}
+              onSubmitted={handleQuizSubmitted}
+            />
 
             <LessonEngagementPanel
               courseId={courseId}
