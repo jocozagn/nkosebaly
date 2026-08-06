@@ -169,6 +169,10 @@ const NkoShell = ({ children, showNav = true }: NkoShellProps) => {
             <Link href="/privacy-policy" className="text-white/70 hover:text-white underline-offset-2 hover:underline">
               Privacy policy
             </Link>
+            <span className="hidden sm:inline text-white/30">·</span>
+            <Link href="/acces-application" className="text-white/70 hover:text-white underline-offset-2 hover:underline">
+              Accès test (Play Store)
+            </Link>
           </div>
           <p className="text-white/40 text-[10px] px-2">
             Développé par {BRAND.silycore.name} · {BRAND.silycore.phoneDisplay}

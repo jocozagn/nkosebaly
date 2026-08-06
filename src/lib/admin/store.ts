@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import { deleteVideoFile } from "@/lib/videos/storage";
 import { deleteAttachmentFile } from "@/lib/attachments/storage";
 import path from "path";
-import { isLessonUnlocked } from "@/lib/progress/lesson-access";
+import { getOrderedVideoLessons, isLessonUnlocked, lessonHasActiveQuiz } from "@/lib/progress/lesson-access";
 import { isPostgresEnabled } from "@/lib/db/config";
 import {
   readAppDataFromPostgres,
@@ -50,6 +50,11 @@ import {
   resolveLicensePlanByDuration,
 } from "@/lib/license/plans";
 import { runExclusiveStoreMutation } from "@/lib/admin/store-queue";
+import {
+  buildDefaultDemoLicenseCard,
+  ensureDefaultDemoLicenseCard,
+  releaseDemoLicenseCardForDevice,
+} from "@/lib/license/default-demo-license";
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin");
 const DATA_FILE = path.join(DATA_DIR, "store.json");
@@ -66,10 +71,13 @@ const defaultSettings: AdminSettings = {
   license_duration_months: 3,
   license_plans: DEFAULT_LICENSE_PLANS,
   certificate_price: 50000,
-  quiz_pass_threshold: 15,
+  quiz_pass_threshold: 16,
   quiz_max_attempts: 3,
-  mobile_app_version: "1.0.1",
-  mobile_app_build: 2,
+  lesson_quiz_time_limit_seconds: 15,
+  lesson_quiz_pass_percent: 70,
+  final_quiz_pass_percent: 80,
+  mobile_app_version: "1.0.2",
+  mobile_app_build: 3,
   mobile_app_release_notes: "Corrections et améliorations KARAMOO SEEBALI.",
 };
 
@@ -85,7 +93,7 @@ const defaultData: AdminData = {
   lesson_reactions: [],
   lesson_quiz_items: [],
   quiz_questions: [],
-  license_cards: [],
+  license_cards: [buildDefaultDemoLicenseCard()],
   student_auth_sessions: [],
   mobile_auth_sessions: [],
   lesson_progress: [],
@@ -144,11 +152,22 @@ export const normalizeAdminSettings = (partial: AdminSettings): AdminSettings =>
   const hasPlans = Array.isArray(merged.license_plans) && merged.license_plans.length > 0;
   return {
     ...merged,
+    lesson_quiz_time_limit_seconds: merged.lesson_quiz_time_limit_seconds ?? 15,
+    lesson_quiz_pass_percent: merged.lesson_quiz_pass_percent ?? 70,
+    final_quiz_pass_percent: merged.final_quiz_pass_percent ?? 80,
     license_plans: hasPlans ? normalizeLicensePlans(merged) : DEFAULT_LICENSE_PLANS,
   };
 };
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Ajoute la licence démo Play Store / admin si elle manque (persiste une fois). */
+const finalizeAdminDataRead = async (data: AdminData): Promise<AdminData> => {
+  const ensured = ensureDefaultDemoLicenseCard(data);
+  if (!ensured.changed) return data;
+  await writeAdminData(ensured.data);
+  return ensured.data;
+};
 
 const tryParseStoreFile = async (filePath: string): Promise<AdminData | null> => {
   try {
@@ -188,19 +207,19 @@ const readAdminDataDirect = async (): Promise<AdminData> => {
 export const readAdminData = async (): Promise<AdminData> => {
   if (isPostgresEnabled()) {
     const fromDb = await readAppDataFromPostgres();
-    if (fromDb) return normalizeData(fromDb);
+    if (fromDb) return finalizeAdminDataRead(normalizeData(fromDb));
   }
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const data = await tryParseStoreFile(DATA_FILE);
-    if (data) return data;
+    if (data) return finalizeAdminDataRead(data);
     if (attempt < 3) await sleep(40);
   }
 
   const backup = await tryParseStoreFile(DATA_FILE_BACKUP);
   if (backup) {
     await writeAdminData(backup);
-    return backup;
+    return finalizeAdminDataRead(backup);
   }
 
   try {
@@ -209,7 +228,7 @@ export const readAdminData = async (): Promise<AdminData> => {
   } catch (err) {
     if (err instanceof Error && err.message === "store.json illisible") throw err;
     await writeAdminData(defaultData);
-    return defaultData;
+    return finalizeAdminDataRead(defaultData);
   }
 };
 
@@ -631,8 +650,38 @@ export const deleteLessonQuizItem = async (id: string): Promise<void> => {
   await writeAdminData(data);
 };
 
-const getLessonQuizPassScore = (total: number): number =>
-  total === 0 ? 0 : Math.max(1, Math.ceil(total * 0.7));
+const getLessonQuizPassScore = (total: number, passPercent: number): number =>
+  total === 0 ? 0 : Math.max(1, Math.ceil((passPercent / 100) * total));
+
+export const getFinalQuizPassRequired = (totalQuestions: number, passPercent: number): number =>
+  totalQuestions === 0 ? 0 : Math.max(1, Math.ceil((passPercent / 100) * totalQuestions));
+
+export const getQuizPassRequired = (totalQuestions: number, threshold: number): number => {
+  if (totalQuestions === 0) return 0;
+  return Math.max(1, Math.ceil((threshold / 20) * totalQuestions));
+};
+
+export const getCourseLessonQuizItems = (
+  data: AdminData,
+  courseId: string
+): AdminLessonQuizItem[] =>
+  data.lesson_quiz_items.filter((item) => item.course_id === courseId && item.active);
+
+export const allLessonQuizzesPassed = (
+  data: AdminData,
+  userId: string,
+  courseId: string
+): boolean => {
+  const lessonsWithQuiz = getOrderedVideoLessons(data, courseId).filter((l) =>
+    lessonHasActiveQuiz(data, courseId, l.id)
+  );
+  if (lessonsWithQuiz.length === 0) return true;
+  return lessonsWithQuiz.every((lesson) =>
+    data.lesson_quiz_attempts.some(
+      (a) => a.user_id === userId && a.lesson_id === lesson.id && a.passed
+    )
+  );
+};
 
 /** Meilleure tentative d'exercice pour une leçon (score le plus élevé) */
 export const getBestLessonQuizAttempt = (
@@ -707,7 +756,8 @@ const gradeStudentLessonQuizAnswers = async (
 
   const score = details.filter((d) => d.correct).length;
   const total = items.length;
-  const passRequired = getLessonQuizPassScore(total);
+  const passPercent = data.settings.lesson_quiz_pass_percent ?? 70;
+  const passRequired = getLessonQuizPassScore(total, passPercent);
 
   return {
     score,
@@ -793,26 +843,63 @@ export const getStudentLessonQuizForPlayback = async (
   return items.map((item) => stripLessonQuizItemForStudent(item, mediaUrlBuilder));
 };
 
-/** Questions actives d'un cours pour le quiz élève (sans réponses) */
-export const getQuizPassRequired = (totalQuestions: number, threshold: number): number => {
-  if (totalQuestions === 0) return 0;
-  return Math.max(1, Math.ceil((threshold / 20) * totalQuestions));
+/** Questions du quiz final — tirées aléatoirement parmi tous les exercices de leçon */
+export const getStudentQuizQuestions = async (
+  courseId: string,
+  mediaUrlBuilder?: (file: { file_id: string; mime_type: string }) => string
+) => {
+  const { stripLessonQuizItemForStudent } = await import("@/lib/quiz/lesson-quiz");
+  const data = await readAdminData();
+  const buildUrl =
+    mediaUrlBuilder ??
+    ((file) => `/api/quiz-media/${file.file_id}?mime=${encodeURIComponent(file.mime_type)}`);
+  const items = getCourseLessonQuizItems(data, courseId)
+    .sort(() => Math.random() - 0.5)
+    .map((item) => stripLessonQuizItemForStudent(item, buildUrl));
+  return items;
 };
 
-/** Questions actives d'un cours pour le quiz élève (sans réponses) */
-export const getStudentQuizQuestions = async (courseId: string) => {
-  const data = await readAdminData();
-  const questions = data.quiz_questions
-    .filter((q) => q.course_id === courseId && q.active)
-    .sort(() => Math.random() - 0.5)
-    .map((q) => ({
-      id: q.id,
-      question_text: q.question_text,
-      options: q.options,
-      category: q.category,
-      difficulty: q.difficulty,
-    }));
-  return questions;
+const buildStudentQuizState = (
+  data: AdminData,
+  user: AdminUser,
+  course: AdminCourse
+) => {
+  const activeCount = getCourseLessonQuizItems(data, course.id).length;
+  const courseProgress = calculateCourseProgressPercent(data, user.id, course.id);
+  const attempts = data.quiz_attempts.filter(
+    (a) => a.user_id === user.id && a.course_id === course.id
+  );
+  const passedAttempt = attempts.find((a) => a.passed);
+  const maxAttempts = data.settings.quiz_max_attempts;
+  const passPercent = data.settings.final_quiz_pass_percent ?? 80;
+  const passRequired = getFinalQuizPassRequired(activeCount, passPercent);
+  const bestScore = attempts.length > 0 ? Math.max(...attempts.map((a) => a.score)) : 0;
+
+  const lessonsWatched =
+    courseProgress.total > 0 && courseProgress.percent >= 100;
+  const lessonQuizzesDone = allLessonQuizzesPassed(data, user.id, course.id);
+  const lessonsComplete = lessonsWatched && lessonQuizzesDone;
+
+  const canAttempt =
+    activeCount > 0 && lessonsComplete && !passedAttempt && attempts.length < maxAttempts;
+
+  return {
+    course: { id: course.id, title: course.title },
+    question_count: activeCount,
+    course_progress_percent: courseProgress.percent,
+    lessons_complete: lessonsComplete,
+    lessons_watched: lessonsWatched,
+    lesson_quizzes_complete: lessonQuizzesDone,
+    attempts_used: attempts.length,
+    max_attempts: maxAttempts,
+    pass_threshold_percent: passPercent,
+    pass_required_score: passRequired,
+    best_score: bestScore,
+    passed: Boolean(passedAttempt),
+    can_attempt: canAttempt,
+    last_attempt: attempts[0] ?? null,
+    time_limit_seconds: data.settings.lesson_quiz_time_limit_seconds ?? 15,
+  };
 };
 
 export const getQuizAttemptsByUser = async (
@@ -832,42 +919,9 @@ export const getStudentQuizState = async (authToken: string, courseId: string) =
   const course = data.courses.find((c) => c.id === courseId && c.status === "published");
   if (!course) return null;
 
-  const activeCount = data.quiz_questions.filter((q) => q.course_id === courseId && q.active).length;
-  const courseProgress = calculateCourseProgressPercent(data, user.id, courseId);
-  const attempts = data.quiz_attempts.filter((a) => a.user_id === user.id && a.course_id === courseId);
-  const passedAttempt = attempts.find((a) => a.passed);
-  const maxAttempts = data.settings.quiz_max_attempts;
-  const passThreshold = data.settings.quiz_pass_threshold;
-  const passRequired = getQuizPassRequired(activeCount, passThreshold);
-  const bestScore = attempts.length > 0 ? Math.max(...attempts.map((a) => a.score)) : 0;
-
-  const lessonsComplete = courseProgress.total > 0 && courseProgress.percent >= 100;
-  const canAttempt =
-    activeCount > 0 &&
-    lessonsComplete &&
-    !passedAttempt &&
-    attempts.length < maxAttempts;
-
-  return {
-    course: { id: course.id, title: course.title },
-    question_count: activeCount,
-    course_progress_percent: courseProgress.percent,
-    lessons_complete: lessonsComplete,
-    attempts_used: attempts.length,
-    max_attempts: maxAttempts,
-    pass_threshold: passThreshold,
-    pass_required_score: passRequired,
-    best_score: bestScore,
-    passed: Boolean(passedAttempt),
-    can_attempt: canAttempt,
-    last_attempt: attempts[0] ?? null,
-  };
+  return buildStudentQuizState(data, user, course);
 };
 
-/**
- * Mobile: état du quiz pour un élève identifié par device_id (X-Mobile-Token → deviceId stable).
- * On duplique la logique pour éviter de dépendre des cookies web (auth_token).
- */
 export const getStudentQuizStateByDeviceId = async (deviceId: string, courseId: string) => {
   const user = await getStudentUserByDeviceId(deviceId);
   if (!user) return null;
@@ -876,43 +930,57 @@ export const getStudentQuizStateByDeviceId = async (deviceId: string, courseId: 
   const course = data.courses.find((c) => c.id === courseId && c.status === "published");
   if (!course) return null;
 
-  const activeCount = data.quiz_questions.filter((q) => q.course_id === courseId && q.active).length;
-  const courseProgress = calculateCourseProgressPercent(data, user.id, courseId);
-  const attempts = data.quiz_attempts.filter((a) => a.user_id === user.id && a.course_id === courseId);
-  const passedAttempt = attempts.find((a) => a.passed);
-  const maxAttempts = data.settings.quiz_max_attempts;
-  const passThreshold = data.settings.quiz_pass_threshold;
-  const passRequired = getQuizPassRequired(activeCount, passThreshold);
-  const bestScore = attempts.length > 0 ? Math.max(...attempts.map((a) => a.score)) : 0;
+  return buildStudentQuizState(data, user, course);
+};
 
-  const lessonsComplete = courseProgress.total > 0 && courseProgress.percent >= 100;
-  const canAttempt =
-    activeCount > 0 &&
-    lessonsComplete &&
-    !passedAttempt &&
-    attempts.length < maxAttempts;
+const gradeFinalCourseQuiz = async (
+  data: AdminData,
+  courseId: string,
+  answers: import("./types").StudentLessonQuizAnswerPayload[]
+): Promise<
+  | {
+      score: number;
+      total: number;
+      passed: boolean;
+      pass_required: number;
+      details: { item_id: string; correct: boolean }[];
+    }
+  | { error: string }
+> => {
+  const { gradeLessonQuizAnswer } = await import("@/lib/quiz/lesson-quiz");
+  const items = getCourseLessonQuizItems(data, courseId);
+  if (items.length === 0) return { error: "Aucune question disponible" };
+
+  const itemIds = new Set(items.map((item) => item.id));
+  const validAnswers = answers.filter((a) => itemIds.has(a.item_id));
+
+  if (validAnswers.length !== items.length) {
+    return { error: "Veuillez répondre à toutes les questions" };
+  }
+
+  const details = items.map((item) => {
+    const answer = validAnswers.find((a) => a.item_id === item.id)!;
+    return { item_id: item.id, correct: gradeLessonQuizAnswer(item, answer) };
+  });
+
+  const score = details.filter((d) => d.correct).length;
+  const total = items.length;
+  const passPercent = data.settings.final_quiz_pass_percent ?? 80;
+  const passRequired = getFinalQuizPassRequired(total, passPercent);
 
   return {
-    course: { id: course.id, title: course.title },
-    question_count: activeCount,
-    course_progress_percent: courseProgress.percent,
-    lessons_complete: lessonsComplete,
-    attempts_used: attempts.length,
-    max_attempts: maxAttempts,
-    pass_threshold: passThreshold,
-    pass_required_score: passRequired,
-    best_score: bestScore,
-    passed: Boolean(passedAttempt),
-    can_attempt: canAttempt,
-    last_attempt: attempts[0] ?? null,
+    score,
+    total,
+    passed: score >= passRequired,
+    pass_required: passRequired,
+    details,
   };
 };
 
-/** Soumet et corrige un quiz */
 export const submitStudentQuiz = async (
   authToken: string,
   courseId: string,
-  answers: { question_id: string; selected: number }[]
+  answers: import("./types").StudentLessonQuizAnswerPayload[]
 ): Promise<{
   score: number;
   total: number;
@@ -920,7 +988,7 @@ export const submitStudentQuiz = async (
   pass_required: number;
   attempts_used: number;
   max_attempts: number;
-  details: { question_id: string; selected: number; correct: boolean }[];
+  details: { item_id: string; correct: boolean }[];
 } | { error: string }> => {
   const user = await getStudentUserByAuthToken(authToken);
   if (!user) return { error: "Profil introuvable" };
@@ -930,35 +998,17 @@ export const submitStudentQuiz = async (
   if (!state) return { error: "Cours introuvable" };
   if (!state.can_attempt) return { error: "Quiz non disponible ou tentatives épuisées" };
 
-  const questions = data.quiz_questions.filter((q) => q.course_id === courseId && q.active);
-  if (questions.length === 0) return { error: "Aucune question disponible" };
-
-  const questionIds = new Set(questions.map((q) => q.id));
-  const validAnswers = answers.filter((a) => questionIds.has(a.question_id));
-
-  if (validAnswers.length !== questions.length) {
-    return { error: "Veuillez répondre à toutes les questions" };
-  }
-
-  const details = validAnswers.map((a) => {
-    const q = questions.find((item) => item.id === a.question_id)!;
-    const correct = a.selected === q.correct_answer;
-    return { question_id: a.question_id, selected: a.selected, correct };
-  });
-
-  const score = details.filter((d) => d.correct).length;
-  const total = questions.length;
-  const passRequired = getQuizPassRequired(total, data.settings.quiz_pass_threshold);
-  const passed = score >= passRequired;
+  const result = await gradeFinalCourseQuiz(data, courseId, answers);
+  if ("error" in result) return result;
 
   const attempt: StudentQuizAttempt = {
     id: crypto.randomUUID(),
     user_id: user.id,
     course_id: courseId,
-    score,
-    total,
-    passed,
-    answers: details,
+    score: result.score,
+    total: result.total,
+    passed: result.passed,
+    answers: result.details,
     created_at: new Date().toISOString(),
   };
 
@@ -970,24 +1020,16 @@ export const submitStudentQuiz = async (
   ).length;
 
   return {
-    score,
-    total,
-    passed,
-    pass_required: passRequired,
+    ...result,
     attempts_used: attemptsUsed,
     max_attempts: data.settings.quiz_max_attempts,
-    details,
   };
 };
 
-/**
- * Mobile: soumission quiz par device_id.
- * Même règles: leçons terminées, tentatives max, toutes les réponses requises.
- */
 export const submitStudentQuizByDeviceId = async (
   deviceId: string,
   courseId: string,
-  answers: { question_id: string; selected: number }[]
+  answers: import("./types").StudentLessonQuizAnswerPayload[]
 ): Promise<{
   score: number;
   total: number;
@@ -995,7 +1037,7 @@ export const submitStudentQuizByDeviceId = async (
   pass_required: number;
   attempts_used: number;
   max_attempts: number;
-  details: { question_id: string; selected: number; correct: boolean }[];
+  details: { item_id: string; correct: boolean }[];
 } | { error: string }> => {
   const user = await getStudentUserByDeviceId(deviceId);
   if (!user) return { error: "Profil introuvable" };
@@ -1005,35 +1047,17 @@ export const submitStudentQuizByDeviceId = async (
   if (!state) return { error: "Cours introuvable" };
   if (!state.can_attempt) return { error: "Quiz non disponible ou tentatives épuisées" };
 
-  const questions = data.quiz_questions.filter((q) => q.course_id === courseId && q.active);
-  if (questions.length === 0) return { error: "Aucune question disponible" };
-
-  const questionIds = new Set(questions.map((q) => q.id));
-  const validAnswers = answers.filter((a) => questionIds.has(a.question_id));
-
-  if (validAnswers.length !== questions.length) {
-    return { error: "Veuillez répondre à toutes les questions" };
-  }
-
-  const details = validAnswers.map((a) => {
-    const q = questions.find((item) => item.id === a.question_id)!;
-    const correct = a.selected === q.correct_answer;
-    return { question_id: a.question_id, selected: a.selected, correct };
-  });
-
-  const score = details.filter((d) => d.correct).length;
-  const total = questions.length;
-  const passRequired = getQuizPassRequired(total, data.settings.quiz_pass_threshold);
-  const passed = score >= passRequired;
+  const result = await gradeFinalCourseQuiz(data, courseId, answers);
+  if ("error" in result) return result;
 
   const attempt: StudentQuizAttempt = {
     id: crypto.randomUUID(),
     user_id: user.id,
     course_id: courseId,
-    score,
-    total,
-    passed,
-    answers: details,
+    score: result.score,
+    total: result.total,
+    passed: result.passed,
+    answers: result.details,
     created_at: new Date().toISOString(),
   };
 
@@ -1045,13 +1069,9 @@ export const submitStudentQuizByDeviceId = async (
   ).length;
 
   return {
-    score,
-    total,
-    passed,
-    pass_required: passRequired,
+    ...result,
     attempts_used: attemptsUsed,
     max_attempts: data.settings.quiz_max_attempts,
-    details,
   };
 };
 
@@ -1261,7 +1281,11 @@ export const activateLicenseCard = async (
       return { success: false, message: "Cette carte a expiré" };
     }
     if (card.device_id === deviceId) return { success: true, card };
-    return { success: false, message: "Cette carte est déjà activée sur un autre appareil" };
+    if (releaseDemoLicenseCardForDevice(data, card, deviceId)) {
+      await writeAdminData(data);
+    } else {
+      return { success: false, message: "Cette carte est déjà activée sur un autre appareil" };
+    }
   }
 
   const now = new Date();
@@ -1300,7 +1324,11 @@ export const activateLicenseByCodeText = async (
       return { success: false, message: "Cette licence a expiré" };
     }
     if (card.device_id === deviceId) return { success: true, card };
-    return { success: false, message: "Cette licence est déjà utilisée sur un autre appareil" };
+    if (releaseDemoLicenseCardForDevice(data, card, deviceId)) {
+      await writeAdminData(data);
+    } else {
+      return { success: false, message: "Cette licence est déjà utilisée sur un autre appareil" };
+    }
   }
 
   const now = new Date();
@@ -1845,12 +1873,12 @@ export const getCertificateEligibility = (
   if (progress.total === 0) return { eligible: false, reason: "Ce cours n'a pas encore de leçons" };
   if (progress.percent < 100) return { eligible: false, reason: "Terminez toutes les leçons du cours" };
 
-  const quizCount = data.quiz_questions.filter((q) => q.course_id === courseId && q.active).length;
+  const quizCount = getCourseLessonQuizItems(data, courseId).length;
   if (quizCount > 0) {
     const quizPassed = data.quiz_attempts.some(
       (a) => a.user_id === userId && a.course_id === courseId && a.passed
     );
-    if (!quizPassed) return { eligible: false, reason: "Réussissez le quiz certifiant" };
+    if (!quizPassed) return { eligible: false, reason: "Réussissez le quiz final (80 % minimum)" };
   }
 
   return { eligible: true, reason: "" };

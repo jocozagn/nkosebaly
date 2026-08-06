@@ -89,6 +89,8 @@ interface LessonQuizBase {
   order: number;
   type: LessonQuizType;
   prompt_text?: string;
+  /** Durée par question en secondes (sinon réglage global admin) */
+  time_limit_seconds?: number;
   active: boolean;
   created_at: string;
 }
@@ -186,6 +188,8 @@ export interface AdminLicenseCard {
   activated_at?: string;
   expires_at?: string;
   created_at: string;
+  /** Licence réutilisable pour admin / examinateurs Play Store (Gandal Fifow). */
+  is_demo_review?: boolean;
 }
 
 export interface AdminUser {
@@ -335,7 +339,7 @@ export interface StudentQuizAttempt {
   score: number;
   total: number;
   passed: boolean;
-  answers: { question_id: string; selected: number; correct: boolean }[];
+  answers: { item_id: string; correct: boolean }[];
   created_at: string;
 }
 
@@ -395,8 +399,12 @@ export interface AdminSettings {
   /** Formules licence en ligne (Djomy) — plusieurs durées / prix */
   license_plans?: LicensePlan[];
   certificate_price: number;
+  /** @deprecated — utiliser final_quiz_pass_percent */
   quiz_pass_threshold: number;
   quiz_max_attempts: number;
+  lesson_quiz_time_limit_seconds?: number;
+  lesson_quiz_pass_percent?: number;
+  final_quiz_pass_percent?: number;
   /** Version affichée APK mobile (ex. 1.0.1) */
   mobile_app_version?: string;
   /** Numéro de build Android (versionCode) — incrémenter à chaque APK */

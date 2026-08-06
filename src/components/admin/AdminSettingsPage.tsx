@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import BrandLoader from "@/components/ui/BrandLoader";
 import { DEFAULT_LICENSE_PLANS } from "@/lib/license/plans";
+import { getDemoLicensePublicInfo } from "@/lib/license/default-demo-license";
 import type { AdminSettings } from "@/lib/admin/types";
 
 /** Paramètres système — inspiré WRTeam System Settings */
 const AdminSettingsPage = () => {
+  const demoAccess = getDemoLicensePublicInfo();
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -258,6 +260,48 @@ const AdminSettingsPage = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-[#f0e8df]">
           <div>
+            <label className="block text-sm font-medium mb-1">Minuteur exercice (secondes)</label>
+            <input
+              type="number"
+              min={5}
+              max={300}
+              value={settings.lesson_quiz_time_limit_seconds ?? 15}
+              onChange={(e) =>
+                setSettings({ ...settings, lesson_quiz_time_limit_seconds: Number(e.target.value) })
+              }
+              className="w-full px-4 py-2.5 border border-[#f0e8df] rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Seuil exercice leçon (%)</label>
+            <input
+              type="number"
+              min={50}
+              max={100}
+              value={settings.lesson_quiz_pass_percent ?? 70}
+              onChange={(e) =>
+                setSettings({ ...settings, lesson_quiz_pass_percent: Number(e.target.value) })
+              }
+              className="w-full px-4 py-2.5 border border-[#f0e8df] rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Seuil quiz final (%)</label>
+            <input
+              type="number"
+              min={50}
+              max={100}
+              value={settings.final_quiz_pass_percent ?? 80}
+              onChange={(e) =>
+                setSettings({ ...settings, final_quiz_pass_percent: Number(e.target.value) })
+              }
+              className="w-full px-4 py-2.5 border border-[#f0e8df] rounded"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-[#f0e8df]">
+          <div>
             <label className="block text-sm font-medium mb-1">Prix certificat (GNF)</label>
             <input
               type="number"
@@ -289,6 +333,35 @@ const AdminSettingsPage = () => {
               className="w-full px-4 py-2.5 border border-[#e8ddd4] rounded"
             />
           </div>
+        </div>
+
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 space-y-3">
+          <h2 className="text-lg font-semibold" style={{ color: "var(--brand-brown)" }}>
+            Licence démo (admin &amp; Google Play)
+          </h2>
+          <p className="text-sm text-amber-950/80">
+            Carte créée automatiquement au démarrage si elle n&apos;existe pas. Réutilisable par les examinateurs Play
+            Store.
+          </p>
+          <p className="text-sm">
+            <strong>Code :</strong>{" "}
+            <code className="px-2 py-1 bg-white rounded border font-mono">{demoAccess.license_code}</code>
+          </p>
+          <p className="text-sm">
+            <strong>Page publique :</strong>{" "}
+            <a
+              href="/acces-application"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+              style={{ color: "var(--brand-brown)" }}
+            >
+              /acces-application
+            </a>
+          </p>
+          <p className="text-xs text-amber-950/70">
+            Profil test : {demoAccess.test_profile.name} · {demoAccess.test_profile.phone}
+          </p>
         </div>
 
         <div className="flex items-center gap-3">
