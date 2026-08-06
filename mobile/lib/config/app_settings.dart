@@ -15,10 +15,21 @@ class AppSettings {
   static const String professorNko = 'ߡߎߛߊ߫ ߓߊߟߊ߲ߘߎ߯ ߖߊߟߏ߫';
   static const String professorFrench = 'Moussa Diallo Baldé';
 
-  static const String packageId = 'com.silycore.nkosebaly';
+  static const String packageId = 'com.silycore.gandalfifow';
+
+  /// Désactive FLAG_SECURE (Android) pour tutoriel / captures d'écran.
+  /// Usage : flutter run --dart-define=ALLOW_SCREEN_CAPTURE=true
+  /// Par défaut : protection active (false).
+  static const bool allowScreenCapture = bool.fromEnvironment(
+    'ALLOW_SCREEN_CAPTURE',
+    defaultValue: false,
+  );
 
   /// Production — https://silycor.xyz
   static String get apiUrl => 'https://silycor.xyz';
+
+  /// Politique de confidentialité (web NKO + Play Store Adlam)
+  static String get privacyPolicyUrl => '$apiUrl/politique-de-confidentialite';
 
   static const String contactEmail = 'diallomoussa2003@gmail.com';
   static const String contactPhone = '+224622873308';

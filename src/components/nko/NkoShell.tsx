@@ -161,6 +161,15 @@ const NkoShell = ({ children, showNav = true }: NkoShellProps) => {
             </a>
           </div>
           <p className="text-white/60 text-xs">© {new Date().getFullYear()} {BRAND.nameNko} · {BRAND.name}</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
+            <Link href="/politique-de-confidentialite" className="text-white/70 hover:text-white underline-offset-2 hover:underline">
+              Politique de confidentialité
+            </Link>
+            <span className="hidden sm:inline text-white/30">·</span>
+            <Link href="/privacy-policy" className="text-white/70 hover:text-white underline-offset-2 hover:underline">
+              Privacy policy
+            </Link>
+          </div>
           <p className="text-white/40 text-[10px] px-2">
             Développé par {BRAND.silycore.name} · {BRAND.silycore.phoneDisplay}
           </p>

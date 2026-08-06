@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:nkosebaly/config/app_settings.dart';
 import 'package:nkosebaly/screens/license_scan_screen.dart';
 import 'package:nkosebaly/services/balandou_api.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Écran profil — consultation et modification après activation.
 class ProfileScreen extends StatefulWidget {
@@ -104,6 +106,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _openPrivacyPolicy() async {
+    final uri = Uri.parse(AppSettings.privacyPolicyUrl);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible d\'ouvrir la page de confidentialité')),
+      );
+    }
+  }
+
   InputDecoration _fieldDecoration(String label, {bool required = false}) {
     return InputDecoration(
       labelText: required ? '$label *' : label,
@@ -181,6 +193,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: _fieldDecoration('Profession / activité'),
                 ),
                 const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: _openPrivacyPolicy,
+                  icon: const Icon(Icons.privacy_tip_outlined),
+                  label: const Text('Politique de confidentialité'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF7D4E2D),
+                    side: const BorderSide(color: Color(0xFF7D4E2D)),
+                    minimumSize: const Size.fromHeight(44),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 FilledButton(
                   onPressed: _saving ? null : _save,
                   style: FilledButton.styleFrom(
