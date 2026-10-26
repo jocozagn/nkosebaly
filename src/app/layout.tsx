@@ -35,6 +35,9 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_DESCRIPTION ||
     `${BRAND.taglineNko} — ${BRAND.name}.`,
   keywords: process.env.NEXT_PUBLIC_KEYWORDS || `N'ko,Mandingue,${BRAND.name}`,
+  other: {
+    "facebook-domain-verification": "7dnv99q8oiup2jdwrisyrlxfq3fyu6",
+  },
 };
 
 export const viewport = {
